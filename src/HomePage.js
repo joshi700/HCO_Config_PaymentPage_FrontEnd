@@ -13,7 +13,7 @@ function HomePage() {
   const [lastSessionId, setLastSessionId] = useState(null);
   
   // Application configuration - no environment variables
-  const API_BASE_URL = 'http://localhost:3005'
+  const API_BASE_URL = 'https://hco-config-payment-page-backend.vercel.app'
   //'https://hco-configurable-embedded-backend.vercel.app';
   const DEBUG_MODE = true;
   const ENABLE_CONSOLE_LOGS = true;
