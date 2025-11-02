@@ -5,7 +5,7 @@ function ReceiptPage() {
     resultIndicator: '',
     sessionVersion: '',
     checkoutVersion: '',
-    orderAmount: '$99.99', // Default amount from your main app
+    orderAmount: '$99.99',
     orderId: '',
     transactionStatus: '',
     transactionId: ''
@@ -20,34 +20,50 @@ function ReceiptPage() {
     const resultIndicator = urlParams.get('resultIndicator') || '';
     const sessionVersion = urlParams.get('sessionVersion') || '';
     const checkoutVersion = urlParams.get('checkoutVersion') || '';
-    const orderId = urlParams.get('orderId') || 'ORDERtesting4'; // Default from your config
+    const orderId = urlParams.get('orderId') || '';
     
-    // Update state with parsed parameters
-    setReceiptData(prev => ({
-      ...prev,
+    // Get amount from localStorage if saved (Step 10 improvement)
+    let orderAmount = '$99.99'; // default
+    try {
+      const savedAmount = localStorage.getItem('lastOrderAmount');
+      if (savedAmount) {
+        orderAmount = `$${parseFloat(savedAmount).toFixed(2)}`;
+      }
+    } catch (e) {
+      console.error('Error reading amount:', e);
+    }
+    
+    // Determine transaction status
+    // Result indicator presence typically indicates success
+    const transactionStatus = resultIndicator ? 'SUCCESS' : 'UNKNOWN';
+    const transactionId = resultIndicator || `TXN_${Date.now()}`;
+    
+    // Update state with all parsed data
+    setReceiptData({
       resultIndicator,
       sessionVersion,
       checkoutVersion,
-      orderId
-    }));
-
-    // Simulate transaction status based on resultIndicator
-    // In real implementation, you'd verify this with your backend
-    if (resultIndicator) {
-      // Simple status determination - you should verify this server-side
-      const isSuccess = resultIndicator.includes('SUCCESS') || resultIndicator.length > 0;
-      setReceiptData(prev => ({
-        ...prev,
-        transactionStatus: isSuccess ? 'SUCCESS' : 'FAILED',
-        transactionId: `TXN_${Date.now()}_${resultIndicator.substring(0, 8)}`
-      }));
-    }
+      orderId,
+      orderAmount,
+      transactionStatus,
+      transactionId
+    });
 
     setLoading(false);
+    
+    // Log for debugging
+    console.log('Receipt data:', {
+      resultIndicator,
+      sessionVersion,
+      checkoutVersion,
+      orderId,
+      orderAmount,
+      transactionStatus
+    });
   }, []);
 
   const handleReturnHome = () => {
-    // Navigate back to main app or reload
+    // Navigate back to main app
     window.location.href = '/';
   };
 
@@ -62,7 +78,7 @@ function ReceiptPage() {
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        fontFamily: 'Arial, sans-serif'
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ 
@@ -74,7 +90,7 @@ function ReceiptPage() {
             animation: 'spin 2s linear infinite',
             margin: '0 auto 20px'
           }}></div>
-          <p>Processing receipt...</p>
+          <p style={{ color: '#666' }}>Processing receipt...</p>
         </div>
       </div>
     );
@@ -82,14 +98,38 @@ function ReceiptPage() {
 
   return (
     <div style={{
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       maxWidth: '600px',
       margin: '0 auto',
       padding: '20px',
       backgroundColor: '#f8f9fa',
       minHeight: '100vh'
     }}>
-      {/* Header */}
+      {/* Logo Header */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        marginBottom: '20px',
+        backgroundColor: 'white',
+        borderRadius: '10px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}>
+        <img 
+          src="/logo.png" 
+          alt="Company Logo" 
+          style={{
+            height: '50px',
+            width: 'auto',
+            maxWidth: '200px',
+            objectFit: 'contain',
+          }}
+          onError={(e) => e.target.style.display = 'none'}
+        />
+      </div>
+
+      {/* Success/Failure Header */}
       <div style={{
         backgroundColor: 'white',
         padding: '30px',
@@ -106,14 +146,15 @@ function ReceiptPage() {
         </div>
         <h1 style={{
           color: receiptData.transactionStatus === 'SUCCESS' ? '#28a745' : '#dc3545',
-          margin: '0 0 10px 0'
+          margin: '0 0 10px 0',
+          fontSize: '28px'
         }}>
-          Payment {receiptData.transactionStatus === 'SUCCESS' ? 'Successful' : 'Failed'}
+          {receiptData.transactionStatus === 'SUCCESS' ? 'Payment Successful' : 'Payment Status Unknown'}
         </h1>
-        <p style={{ color: '#666', margin: 0 }}>
+        <p style={{ color: '#666', margin: 0, fontSize: '16px' }}>
           {receiptData.transactionStatus === 'SUCCESS' 
-            ? 'Your transaction has been processed successfully'
-            : 'There was an issue processing your payment'
+            ? 'Thank you for your order! Your transaction has been processed successfully.'
+            : 'Please check the transaction details below.'
           }
         </p>
       </div>
@@ -130,39 +171,47 @@ function ReceiptPage() {
           borderBottom: '2px solid #eee', 
           paddingBottom: '10px',
           marginTop: 0,
-          color: '#333'
+          color: '#333',
+          fontSize: '20px'
         }}>
           Receipt Details
         </h2>
         
         <div style={{ marginBottom: '15px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>Amount:</span>
-            <span style={{ fontSize: '18px', color: '#28a745', fontWeight: 'bold' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Amount:</span>
+            <span style={{ fontSize: '20px', color: '#28a745', fontWeight: 'bold' }}>
               {receiptData.orderAmount}
             </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>Order ID:</span>
-            <span>{receiptData.orderId}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Order ID:</span>
+            <span style={{ fontSize: '14px', fontFamily: 'monospace', color: '#333' }}>
+              {receiptData.orderId || 'N/A'}
+            </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>Transaction ID:</span>
-            <span>{receiptData.transactionId}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Transaction ID:</span>
+            <span style={{ fontSize: '14px', fontFamily: 'monospace', color: '#333', wordBreak: 'break-all' }}>
+              {receiptData.transactionId}
+            </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>Date:</span>
-            <span>{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Date:</span>
+            <span style={{ fontSize: '14px', color: '#333' }}>
+              {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+            </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>Status:</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Status:</span>
             <span style={{ 
               color: receiptData.transactionStatus === 'SUCCESS' ? '#28a745' : '#dc3545',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              fontSize: '16px'
             }}>
               {receiptData.transactionStatus}
             </span>
@@ -189,23 +238,44 @@ function ReceiptPage() {
         </h3>
         
         <div style={{ fontSize: '14px', color: '#666' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span>Result Indicator:</span>
-            <span style={{ fontFamily: 'monospace', backgroundColor: '#f8f9fa', padding: '2px 6px', borderRadius: '3px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Result Indicator:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px',
+              wordBreak: 'break-all',
+              maxWidth: '60%',
+              textAlign: 'right'
+            }}>
               {receiptData.resultIndicator || 'N/A'}
             </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span>Session Version:</span>
-            <span style={{ fontFamily: 'monospace', backgroundColor: '#f8f9fa', padding: '2px 6px', borderRadius: '3px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Session Version:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px'
+            }}>
               {receiptData.sessionVersion || 'N/A'}
             </span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span>Checkout Version:</span>
-            <span style={{ fontFamily: 'monospace', backgroundColor: '#f8f9fa', padding: '2px 6px', borderRadius: '3px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Checkout Version:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px'
+            }}>
               {receiptData.checkoutVersion || 'N/A'}
             </span>
           </div>
@@ -216,23 +286,35 @@ function ReceiptPage() {
       <div style={{
         display: 'flex',
         gap: '15px',
-        flexWrap: 'wrap'
+        flexWrap: 'wrap',
+        marginBottom: '20px'
       }}>
         <button
           onClick={handlePrintReceipt}
           style={{
             flex: 1,
+            minWidth: '150px',
             padding: '15px 20px',
             backgroundColor: '#007bff',
             color: 'white',
             border: 'none',
-            borderRadius: '5px',
+            borderRadius: '8px',
             fontSize: '16px',
+            fontWeight: '600',
             cursor: 'pointer',
-            transition: 'background-color 0.3s'
+            transition: 'all 0.3s',
+            boxShadow: '0 2px 8px rgba(0,123,255,0.3)'
           }}
-          onMouseOver={(e) => e.target.style.backgroundColor = '#0056b3'}
-          onMouseOut={(e) => e.target.style.backgroundColor = '#007bff'}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = '#0056b3';
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 4px 12px rgba(0,123,255,0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = '#007bff';
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 2px 8px rgba(0,123,255,0.3)';
+          }}
         >
           🖨️ Print Receipt
         </button>
@@ -241,17 +323,28 @@ function ReceiptPage() {
           onClick={handleReturnHome}
           style={{
             flex: 1,
+            minWidth: '150px',
             padding: '15px 20px',
             backgroundColor: '#28a745',
             color: 'white',
             border: 'none',
-            borderRadius: '5px',
+            borderRadius: '8px',
             fontSize: '16px',
+            fontWeight: '600',
             cursor: 'pointer',
-            transition: 'background-color 0.3s'
+            transition: 'all 0.3s',
+            boxShadow: '0 2px 8px rgba(40,167,69,0.3)'
           }}
-          onMouseOver={(e) => e.target.style.backgroundColor = '#1e7e34'}
-          onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = '#1e7e34';
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 4px 12px rgba(40,167,69,0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = '#28a745';
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 2px 8px rgba(40,167,69,0.3)';
+          }}
         >
           🏠 Return to Home
         </button>
@@ -262,30 +355,40 @@ function ReceiptPage() {
         marginTop: '30px',
         padding: '20px',
         backgroundColor: '#e9ecef',
-        borderRadius: '5px',
+        borderRadius: '8px',
         fontSize: '14px',
         color: '#666',
-        textAlign: 'center'
+        textAlign: 'center',
+        lineHeight: '1.6'
       }}>
         🔒 This transaction was processed securely through Mastercard's encrypted payment gateway. 
         Please keep this receipt for your records.
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
         
         @media print {
-          body { margin: 0; }
-          button { display: none !important; }
+          body { 
+            margin: 0; 
+            background-color: white !important;
+          }
+          button { 
+            display: none !important; 
+          }
+          div[style*="backgroundColor: '#e9ecef'"] {
+            display: none !important;
+          }
         }
         
         @media (max-width: 600px) {
           div[style*="flex"] button {
             flex: none !important;
             width: 100% !important;
+            min-width: 100% !important;
           }
         }
       `}</style>
