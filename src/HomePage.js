@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import ShoppingCart from './ShoppingCart';
 
 function HomePage() {
   // State Management
@@ -10,7 +11,6 @@ function HomePage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [scriptKey, setScriptKey] = useState(0);
-  const [showConfigForm, setShowConfigForm] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('checking');
   const [lastSessionId, setLastSessionId] = useState(null);
   
@@ -140,70 +140,70 @@ function HomePage() {
 
   // Configure checkout when script is loaded and session is available
   useEffect(() => {
-  if (isCheckoutReady && window.Checkout && paymentSession) {
-    debugLog('Configuring checkout with session:', paymentSession);
-    
-    try {
-      setTimeout(() => {
-        const configObj = {
-          session: {
-            id: paymentSession
-          }
-        };
-        
-        debugLog('Configuration object:', configObj);
-        window.Checkout.configure(configObj);
-        debugLog('Configuration completed successfully');
-        
-        // Only show payment page for hosted mode
-        if (checkoutMode === 'hosted') {
-          setTimeout(() => {
-            try {
-              debugLog('Showing hosted payment page...');
-              window.Checkout.showPaymentPage();
-              debugLog('Hosted payment page displayed');
-            } catch (showError) {
-              console.error('Error showing payment page:', showError);
-              setError('Failed to display payment page: ' + showError.message);
-            }
-          }, 500);
-        }
-        // Embedded mode is handled by the separate useEffect
-        
-      }, 100);
+    if (isCheckoutReady && window.Checkout && paymentSession) {
+      debugLog('Configuring checkout with session:', paymentSession);
       
-    } catch (configError) {
-      console.error('Error configuring checkout:', configError);
-      setError('Failed to configure payment system: ' + configError.message);
+      try {
+        setTimeout(() => {
+          const configObj = {
+            session: {
+              id: paymentSession
+            }
+          };
+          
+          debugLog('Configuration object:', configObj);
+          window.Checkout.configure(configObj);
+          debugLog('Configuration completed successfully');
+          
+          // Only show payment page for hosted mode
+          if (checkoutMode === 'hosted') {
+            setTimeout(() => {
+              try {
+                debugLog('Showing hosted payment page...');
+                window.Checkout.showPaymentPage();
+                debugLog('Hosted payment page displayed');
+              } catch (showError) {
+                console.error('Error showing payment page:', showError);
+                setError('Failed to display payment page: ' + showError.message);
+              }
+            }, 500);
+          }
+          // Embedded mode is handled by the separate useEffect
+          
+        }, 100);
+        
+      } catch (configError) {
+        console.error('Error configuring checkout:', configError);
+        setError('Failed to configure payment system: ' + configError.message);
+      }
     }
-  }
-}, [isCheckoutReady, paymentSession, checkoutMode, debugLog]);
+  }, [isCheckoutReady, paymentSession, checkoutMode, debugLog]);
 
   // Display embedded form when view changes to embedded
-useEffect(() => {
-  if (currentView === 'embedded' && isCheckoutReady && window.Checkout && paymentSession) {
-    debugLog('Displaying embedded checkout form');
-    
-    setTimeout(() => {
-      try {
-        const embeddedElement = document.getElementById('hco-embedded');
-        if (!embeddedElement) {
-          throw new Error('Embedded container element not found');
+  useEffect(() => {
+    if (currentView === 'embedded' && isCheckoutReady && window.Checkout && paymentSession) {
+      debugLog('Displaying embedded checkout form');
+      
+      setTimeout(() => {
+        try {
+          const embeddedElement = document.getElementById('hco-embedded');
+          if (!embeddedElement) {
+            throw new Error('Embedded container element not found');
+          }
+          
+          debugLog('Calling showEmbeddedPage...');
+          window.Checkout.showEmbeddedPage('#hco-embedded');
+          debugLog('Embedded form displayed successfully');
+          
+        } catch (showError) {
+          console.error('Error showing embedded page:', showError);
+          setError('Failed to display embedded payment form: ' + showError.message);
+          setCurrentView('cart');
+          setPaymentSession(null);
         }
-        
-        debugLog('Calling showEmbeddedPage...');
-        window.Checkout.showEmbeddedPage('#hco-embedded');
-        debugLog('Embedded form displayed successfully');
-        
-      } catch (showError) {
-        console.error('Error showing embedded page:', showError);
-        setError('Failed to display embedded payment form: ' + showError.message);
-        setCurrentView('cart');
-        setPaymentSession(null);
-      }
-    }, 600); // Wait for configuration to complete
-  }
-}, [currentView, isCheckoutReady, paymentSession, debugLog]);
+      }, 600); // Wait for configuration to complete
+    }
+  }, [currentView, isCheckoutReady, paymentSession, debugLog]);
   
   // Save configuration to localStorage if enabled
   const saveConfigToStorage = useCallback((newConfig, newOrderConfig) => {
@@ -444,6 +444,14 @@ useEffect(() => {
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
+      // Store amount for receipt page
+      if (ENABLE_CONFIG_SAVE) {
+        const amount = useAdvancedMode 
+          ? validatedPayload.order?.amount || '99.00'
+          : orderConfig.amount;
+        localStorage.setItem('lastOrderAmount', amount);
+      }
+      
       const requestBody = {
         ...config, // Include auth config
         ...validatedPayload // Spread the payload directly
@@ -504,87 +512,256 @@ useEffect(() => {
   };
 
   const openEmbeddedCheckout = async () => {
-  try {
-    setError(null);
-    setIsLoadingSession(true);
-    
-    debugLog('Initializing embedded checkout...');
-    
-    // Clear previous session
-    setPaymentSession(null);
-    if (typeof(Storage) !== "undefined") {
-      sessionStorage.clear();
+    try {
+      setError(null);
+      setIsLoadingSession(true);
+      
+      debugLog('Initializing embedded checkout...');
+      
+      // Clear previous session
+      setPaymentSession(null);
+      if (typeof(Storage) !== "undefined") {
+        sessionStorage.clear();
+      }
+      
+      // Force script reload
+      setScriptKey(prev => prev + 1);
+      
+      // Small delay for cleanup
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Get new session
+      const sessionId = await getSessionId();
+      const trimmedSessionId = sessionId.trim();
+      
+      debugLog('Session ID for embedded:', trimmedSessionId);
+      
+      setPaymentSession(trimmedSessionId);
+      setCurrentView('embedded');
+      setCheckoutMode('embedded');
+      
+    } catch (error) {
+      console.error('Failed to open embedded checkout:', error);
+      setError('Failed to initialize embedded checkout: ' + error.message);
+      setCurrentView('cart');
+    } finally {
+      setIsLoadingSession(false);
     }
-    
-    // Force script reload
-    setScriptKey(prev => prev + 1);
-    
-    // Small delay for cleanup
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Get new session
-    const sessionId = await getSessionId();
-    const trimmedSessionId = sessionId.trim();
-    
-    debugLog('Session ID for embedded:', trimmedSessionId);
-    
-    setPaymentSession(trimmedSessionId);
-    setCurrentView('embedded');
-    setCheckoutMode('embedded');
-    
-  } catch (error) {
-    console.error('Failed to open embedded checkout:', error);
-    setError('Failed to initialize embedded checkout: ' + error.message);
-    setCurrentView('cart');
-  } finally {
-    setIsLoadingSession(false);
-  }
-};
+  };
   
   const openCheckoutPage = async () => {
-  try {
-    debugLog('Initializing hosted checkout...');
-    
-    setPaymentSession(null);
-    setError(null);
-    setIsCheckoutReady(false);
-    setIsLoadingSession(true);
-    
-    if (typeof(Storage) !== "undefined") {
-      sessionStorage.clear();
+    try {
+      debugLog('Initializing hosted checkout...');
+      
+      setPaymentSession(null);
+      setError(null);
+      setIsCheckoutReady(false);
+      setIsLoadingSession(true);
+      
+      if (typeof(Storage) !== "undefined") {
+        sessionStorage.clear();
+      }
+      
+      setScriptKey(prev => prev + 1);
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      const sessionId = await getSessionId();
+      const trimmedSessionId = sessionId.trim();
+      
+      debugLog('Session ID for hosted:', trimmedSessionId);
+      
+      setPaymentSession(trimmedSessionId);
+      setCheckoutMode('hosted');
+      
+      // Show payment page will happen in the useEffect
+      
+    } catch (error) {
+      console.error('Failed to open checkout page:', error);
+      setError('Failed to initialize checkout: ' + error.message);
+    } finally {
+      setIsLoadingSession(false);
     }
-    
-    setScriptKey(prev => prev + 1);
-    
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    const sessionId = await getSessionId();
-    const trimmedSessionId = sessionId.trim();
-    
-    debugLog('Session ID for hosted:', trimmedSessionId);
-    
-    setPaymentSession(trimmedSessionId);
-    setCheckoutMode('hosted');
-    
-    // Show payment page will happen in the useEffect
-    
-  } catch (error) {
-    console.error('Failed to open checkout page:', error);
-    setError('Failed to initialize checkout: ' + error.message);
-  } finally {
-    setIsLoadingSession(false);
-  }
-};
+  };
 
   const styles = {
+    // ... (keeping all your existing styles, adding new ones below)
     app: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '20px',
       backgroundColor: '#f8fafc',
       minHeight: '100vh'
     },
+    
+    // NEW STYLES FOR MULTI-VIEW
+    configOverlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '20px',
+    },
+    configModal: {
+      backgroundColor: 'white',
+      borderRadius: '12px',
+      maxWidth: '900px',
+      width: '100%',
+      maxHeight: '90vh',
+      overflow: 'auto',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+    },
+    configHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '20px 30px',
+      borderBottom: '1px solid #e2e8f0',
+      position: 'sticky',
+      top: 0,
+      backgroundColor: 'white',
+      zIndex: 10,
+    },
+    configLogoSection: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '15px',
+      flex: 1,
+    },
+    configLogo: {
+      height: '40px',
+      width: 'auto',
+      maxWidth: '120px',
+      objectFit: 'contain',
+    },
+    logoFallback: {
+      width: '40px',
+      height: '40px',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      borderRadius: '8px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    logoIcon: {
+      fontSize: '24px',
+    },
+    closeButton: {
+      background: 'none',
+      border: 'none',
+      fontSize: '28px',
+      cursor: 'pointer',
+      color: '#718096',
+      padding: '0',
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      transition: 'all 0.3s',
+    },
+    configContent: {
+      padding: '30px',
+    },
+    configActions: {
+      padding: '20px 30px',
+      borderTop: '1px solid #e2e8f0',
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: '10px',
+      position: 'sticky',
+      bottom: 0,
+      backgroundColor: 'white',
+    },
+    backButton: {
+      padding: '12px 24px',
+      backgroundColor: '#4299e1',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '16px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      transition: 'all 0.3s',
+    },
+    embeddedContainer: {
+      maxWidth: '1200px',
+      margin: '0 auto',
+      padding: '20px',
+      minHeight: '100vh',
+    },
+    embeddedHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '30px',
+      padding: '20px',
+      backgroundColor: 'white',
+      borderRadius: '10px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    },
+    embeddedHeaderContent: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '20px',
+    },
+    embeddedLogo: {
+      height: '45px',
+      width: 'auto',
+      maxWidth: '130px',
+      objectFit: 'contain',
+    },
+    embeddedTitle: {
+      margin: 0,
+      fontSize: '28px',
+      fontWeight: '700',
+      color: '#1a202c',
+    },
+    embeddedContent: {
+      backgroundColor: 'white',
+      borderRadius: '10px',
+      padding: '30px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      minHeight: '600px',
+    },
+    errorBanner: {
+      backgroundColor: '#fff5f5',
+      color: '#c53030',
+      padding: '16px 20px',
+      borderRadius: '8px',
+      marginBottom: '20px',
+      border: '1px solid #feb2b2',
+    },
+    floatingError: {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      backgroundColor: '#fff5f5',
+      color: '#c53030',
+      padding: '16px 24px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      border: '1px solid #feb2b2',
+      zIndex: 1000,
+      maxWidth: '400px',
+    },
+    floatingSuccess: {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      backgroundColor: '#f0fff4',
+      color: '#22543d',
+      padding: '16px 24px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      border: '1px solid #9ae6b4',
+      zIndex: 1000,
+      maxWidth: '400px',
+    },
+    
+    // EXISTING STYLES FROM YOUR CODE
     header: {
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
@@ -820,6 +997,7 @@ useEffect(() => {
     }
   };
 
+  // ========== MULTI-VIEW JSX RENDERING ==========
   return (
     <div style={styles.app}>
       <style>
@@ -850,313 +1028,394 @@ useEffect(() => {
             background-color: #f1f5f9;
             border-color: #cbd5e1;
           }
+          
+          .close-button:hover {
+            background-color: #f3f4f6;
+          }
+          
+          .back-button:hover {
+            background-color: #3182ce;
+          }
         `}
       </style>
 
-      <header style={styles.header}>
-        <div style={styles.headerContent}>
-          <div>
-            <h1 style={{margin: 0, fontSize: '28px'}}>Mastercard Hosted Checkout - Payment Page</h1>
-          </div>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end'}}>
-            <div style={styles.statusIndicator}>
-              <div style={styles.statusDot}></div>
-              <span>
-                {connectionStatus === 'connected' ? 'Backend Connected' : 
-                 connectionStatus === 'checking' ? 'Checking Connection...' : 
-                 'Connection Error'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {success && (
-        <div style={styles.successMessage}>
-          <span>✅</span>
-          <p style={{margin: 0}}>{success}</p>
-        </div>
+      {/* ========== SHOPPING CART VIEW ========== */}
+      {currentView === 'cart' && (
+        <ShoppingCart
+          onCheckoutHosted={openCheckoutPage}
+          onCheckoutEmbedded={openEmbeddedCheckout}
+          onOpenSettings={() => setCurrentView('config')}
+          isConfigured={isFormValid()}
+          isLoading={isLoadingSession}
+        />
       )}
-
-      {error && (
-        <div style={styles.errorMessage}>
-          <span>⚠️</span>
-          <div>
-            <p style={{margin: 0, fontWeight: '600'}}>Error</p>
-            <p style={{margin: '4px 0 0 0', fontSize: '14px'}}>{error}</p>
-          </div>
-        </div>
-      )}
-
-      {showConfigForm && (
-        <div style={styles.configForm}>
-          {ENABLE_ADVANCED_MODE && (
-            <div style={styles.modeToggle}>
-              <button
-                style={{
-                  ...styles.modeButton,
-                  ...(useAdvancedMode ? styles.modeButtonInactive : styles.modeButtonActive)
-                }}
-                onClick={() => setUseAdvancedMode(false)}
-              >
-                🎯 Simple Mode
-              </button>
-              <button
-                style={{
-                  ...styles.modeButton,
-                  ...(useAdvancedMode ? styles.modeButtonActive : styles.modeButtonInactive)
-                }}
-                onClick={() => setUseAdvancedMode(true)}
-              >
-                ⚙️ Advanced JSON Mode
-              </button>
-            </div>
-          )}
-
-          <div style={styles.sectionTitle}>
-            🔐 API Configuration
-          </div>
-
-          <div style={styles.formRow} className="form-row">
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Merchant ID</label>
-              <input
-                style={styles.input}
-                className="config-input"
-                type="text"
-                value={config.merchantId}
-                onChange={(e) => handleConfigChange('merchantId', e.target.value)}
-                placeholder="TESTMIDtesting00"
-                onFocus={(e) => e.target.classList.add('input-focused')}
-                onBlur={(e) => e.target.classList.remove('input-focused')}
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Username (auto-generated)</label>
-              <input
-                style={{...styles.input, backgroundColor: '#f9fafb', color: '#6b7280'}}
-                type="text"
-                value={config.username}
-                readOnly
-                placeholder="merchant.TESTMIDtesting00"
-              />
-            </div>
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>API Password</label>
-            <input
-              style={styles.input}
-              className="config-input"
-              type="password"
-              value={config.password}
-              onChange={(e) => handleConfigChange('password', e.target.value)}
-              placeholder="Enter your Mastercard API password"
-              onFocus={(e) => e.target.classList.add('input-focused')}
-              onBlur={(e) => e.target.classList.remove('input-focused')}
-            />
-          </div>
-
-          <div style={styles.formRow} className="form-row">
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Base URL</label>
-              <input
-                style={styles.input}
-                className="config-input"
-                type="text"
-                value={config.apiBaseUrl}
-                onChange={(e) => handleConfigChange('apiBaseUrl', e.target.value)}
-                placeholder="https://mtf.gateway.mastercard.com"
-                onFocus={(e) => e.target.classList.add('input-focused')}
-                onBlur={(e) => e.target.classList.remove('input-focused')}
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Version</label>
-              <input
-                style={styles.input}
-                className="config-input"
-                type="text"
-                value={config.apiVersion}
-                onChange={(e) => handleConfigChange('apiVersion', e.target.value)}
-                placeholder="73"
-                onFocus={(e) => e.target.classList.add('input-focused')}
-                onBlur={(e) => e.target.classList.remove('input-focused')}
-              />
-            </div>
-          </div>
-
-          {!useAdvancedMode && (
-            <>
-              <div style={styles.sectionTitle}>
-                💳 Order Configuration
-              </div>
-              <div style={styles.formRow} className="form-row">
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Amount</label>
-                  <input
-                    style={styles.input}
-                    className="config-input"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={orderConfig.amount}
-                    onChange={(e) => handleOrderConfigChange('amount', e.target.value)}
-                    placeholder="99.00"
-                    onFocus={(e) => e.target.classList.add('input-focused')}
-                    onBlur={(e) => e.target.classList.remove('input-focused')}
-                  />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Currency</label>
-                  <select
-                    style={styles.input}
-                    value={orderConfig.currency}
-                    onChange={(e) => handleOrderConfigChange('currency', e.target.value)}
-                    onFocus={(e) => e.target.classList.add('input-focused')}
-                    onBlur={(e) => e.target.classList.remove('input-focused')}
-                  >
-                    <option value="USD">USD - US Dollar</option>
-                    <option value="HKD">HKD - Hong Kong Dollar</option>
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="GBP">GBP - British Pound</option>
-                    <option value="CAD">CAD - Canadian Dollar</option>
-                    <option value="AUD">AUD - Australian Dollar</option>
-                    <option value="JPY">JPY - Japanese Yen</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Order Description</label>
-                <input
-                  style={styles.input}
-                  className="config-input"
-                  type="text"
-                  value={orderConfig.description}
-                  onChange={(e) => handleOrderConfigChange('description', e.target.value)}
-                  placeholder="Goods and Services"
-                  onFocus={(e) => e.target.classList.add('input-focused')}
-                  onBlur={(e) => e.target.classList.remove('input-focused')}
+      
+      {/* ========== CONFIGURATION MODAL VIEW ========== */}
+      {currentView === 'config' && (
+        <div style={styles.configOverlay}>
+          <div style={styles.configModal}>
+            <div style={styles.configHeader}>
+              <div style={styles.configLogoSection}>
+                <img 
+                  src="/logo.png" 
+                  alt="Company Logo" 
+                  style={styles.configLogo}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
                 />
+                <div style={{...styles.logoFallback, display: 'none'}}>
+                  <span style={styles.logoIcon}>⚙️</span>
+                </div>
+                <h2 style={{margin: 0, flex: 1}}>Payment Gateway Configuration</h2>
+              </div>
+              <button 
+                onClick={() => setCurrentView('cart')}
+                style={styles.closeButton}
+                className="close-button"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div style={styles.configContent}>
+              {/* Connection Status */}
+              <div style={{...styles.statusIndicator, marginBottom: '20px', display: 'inline-flex'}}>
+                <div style={styles.statusDot}></div>
+                <span>
+                  {connectionStatus === 'connected' ? 'Backend Connected' : 
+                   connectionStatus === 'checking' ? 'Checking Connection...' : 
+                   'Connection Error'}
+                </span>
               </div>
 
+              {success && (
+                <div style={styles.successMessage}>
+                  <span>✅</span>
+                  <p style={{margin: 0}}>{success}</p>
+                </div>
+              )}
+
+              {error && (
+                <div style={styles.errorMessage}>
+                  <span>⚠️</span>
+                  <div>
+                    <p style={{margin: 0, fontWeight: '600'}}>Error</p>
+                    <p style={{margin: '4px 0 0 0', fontSize: '14px'}}>{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode Toggle */}
+              {ENABLE_ADVANCED_MODE && (
+                <div style={styles.modeToggle}>
+                  <button
+                    style={{
+                      ...styles.modeButton,
+                      ...(useAdvancedMode ? styles.modeButtonInactive : styles.modeButtonActive)
+                    }}
+                    onClick={() => setUseAdvancedMode(false)}
+                  >
+                    🎯 Simple Mode
+                  </button>
+                  <button
+                    style={{
+                      ...styles.modeButton,
+                      ...(useAdvancedMode ? styles.modeButtonActive : styles.modeButtonInactive)
+                    }}
+                    onClick={() => setUseAdvancedMode(true)}
+                  >
+                    ⚙️ Advanced JSON Mode
+                  </button>
+                </div>
+              )}
+
+              {/* API Configuration Section */}
               <div style={styles.sectionTitle}>
-                🏢 Merchant Information
+                🔐 API Configuration
               </div>
+
               <div style={styles.formRow} className="form-row">
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Merchant Name</label>
+                  <label style={styles.label}>Merchant ID</label>
                   <input
                     style={styles.input}
                     className="config-input"
                     type="text"
-                    value={orderConfig.merchantName}
-                    onChange={(e) => handleOrderConfigChange('merchantName', e.target.value)}
-                    placeholder="JK Enterprises LLC"
+                    value={config.merchantId}
+                    onChange={(e) => handleConfigChange('merchantId', e.target.value)}
+                    placeholder="TESTMIDtesting00"
                     onFocus={(e) => e.target.classList.add('input-focused')}
                     onBlur={(e) => e.target.classList.remove('input-focused')}
                   />
                 </div>
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Merchant URL</label>
+                  <label style={styles.label}>Username (auto-generated)</label>
+                  <input
+                    style={{...styles.input, backgroundColor: '#f9fafb', color: '#6b7280'}}
+                    type="text"
+                    value={config.username}
+                    readOnly
+                    placeholder="merchant.TESTMIDtesting00"
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>API Password</label>
+                <input
+                  style={styles.input}
+                  className="config-input"
+                  type="password"
+                  value={config.password}
+                  onChange={(e) => handleConfigChange('password', e.target.value)}
+                  placeholder="Enter your Mastercard API password"
+                  onFocus={(e) => e.target.classList.add('input-focused')}
+                  onBlur={(e) => e.target.classList.remove('input-focused')}
+                />
+              </div>
+
+              <div style={styles.formRow} className="form-row">
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>API Base URL</label>
                   <input
                     style={styles.input}
                     className="config-input"
-                    type="url"
-                    value={orderConfig.merchantUrl}
-                    onChange={(e) => handleOrderConfigChange('merchantUrl', e.target.value)}
-                    placeholder="https://microsoft.com/"
+                    type="text"
+                    value={config.apiBaseUrl}
+                    onChange={(e) => handleConfigChange('apiBaseUrl', e.target.value)}
+                    placeholder="https://mtf.gateway.mastercard.com"
+                    onFocus={(e) => e.target.classList.add('input-focused')}
+                    onBlur={(e) => e.target.classList.remove('input-focused')}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>API Version</label>
+                  <input
+                    style={styles.input}
+                    className="config-input"
+                    type="text"
+                    value={config.apiVersion}
+                    onChange={(e) => handleConfigChange('apiVersion', e.target.value)}
+                    placeholder="73"
                     onFocus={(e) => e.target.classList.add('input-focused')}
                     onBlur={(e) => e.target.classList.remove('input-focused')}
                   />
                 </div>
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Return URL</label>
-                <input
-                  style={styles.input}
-                  className="config-input"
-                  type="url"
-                  value={orderConfig.returnUrl}
-                  onChange={(e) => handleOrderConfigChange('returnUrl', e.target.value)}
-                  placeholder={`${window.location.origin}/ReceiptPage`}
-                  onFocus={(e) => e.target.classList.add('input-focused')}
-                  onBlur={(e) => e.target.classList.remove('input-focused')}
-                />
-              </div>
-            </>
-          )}
-
-          {useAdvancedMode && ENABLE_ADVANCED_MODE && (
-            <>
-              <div style={styles.sectionTitle}>
-                ⚙️ Advanced JSON Configuration
-              </div>
-              <div style={styles.infoBox}>
-                <span>🔧</span>
-                <div>
-                  <strong>Advanced JSON Mode:</strong> Edit the complete JSON request payload for full control. 
-                  Use "ORDER_PLACEHOLDER" for the order ID - it will be auto-generated with a unique timestamp and random string.
-                </div>
-              </div>
-              
-              <div style={styles.formGroup}>
-                <label style={styles.label}>JSON Request Payload</label>
-                <textarea
-                  style={{
-                    ...styles.textarea,
-                    ...(jsonError ? styles.textareaError : {})
-                  }}
-                  value={jsonPayload}
-                  onChange={(e) => handleJsonChange(e.target.value)}
-                  placeholder="Enter complete JSON payload..."
-                />
-                {jsonError && (
-                  <div style={styles.jsonError}>
-                    <strong>JSON Error:</strong> {jsonError}
+              {/* Simple Mode - Order Configuration */}
+              {!useAdvancedMode && (
+                <>
+                  <div style={styles.sectionTitle}>
+                    💳 Order Configuration
                   </div>
-                )}
-              </div>
-            </>
+                  <div style={styles.formRow} className="form-row">
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Amount</label>
+                      <input
+                        style={styles.input}
+                        className="config-input"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={orderConfig.amount}
+                        onChange={(e) => handleOrderConfigChange('amount', e.target.value)}
+                        placeholder="99.00"
+                        onFocus={(e) => e.target.classList.add('input-focused')}
+                        onBlur={(e) => e.target.classList.remove('input-focused')}
+                      />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Currency</label>
+                      <select
+                        style={styles.input}
+                        value={orderConfig.currency}
+                        onChange={(e) => handleOrderConfigChange('currency', e.target.value)}
+                        onFocus={(e) => e.target.classList.add('input-focused')}
+                        onBlur={(e) => e.target.classList.remove('input-focused')}
+                      >
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="HKD">HKD - Hong Kong Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="CAD">CAD - Canadian Dollar</option>
+                        <option value="AUD">AUD - Australian Dollar</option>
+                        <option value="JPY">JPY - Japanese Yen</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Order Description</label>
+                    <input
+                      style={styles.input}
+                      className="config-input"
+                      type="text"
+                      value={orderConfig.description}
+                      onChange={(e) => handleOrderConfigChange('description', e.target.value)}
+                      placeholder="Goods and Services"
+                      onFocus={(e) => e.target.classList.add('input-focused')}
+                      onBlur={(e) => e.target.classList.remove('input-focused')}
+                    />
+                  </div>
+
+                  <div style={styles.sectionTitle}>
+                    🏢 Merchant Information
+                  </div>
+                  <div style={styles.formRow} className="form-row">
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Merchant Name</label>
+                      <input
+                        style={styles.input}
+                        className="config-input"
+                        type="text"
+                        value={orderConfig.merchantName}
+                        onChange={(e) => handleOrderConfigChange('merchantName', e.target.value)}
+                        placeholder="JK Enterprises LLC"
+                        onFocus={(e) => e.target.classList.add('input-focused')}
+                        onBlur={(e) => e.target.classList.remove('input-focused')}
+                      />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Merchant URL</label>
+                      <input
+                        style={styles.input}
+                        className="config-input"
+                        type="url"
+                        value={orderConfig.merchantUrl}
+                        onChange={(e) => handleOrderConfigChange('merchantUrl', e.target.value)}
+                        placeholder="https://microsoft.com/"
+                        onFocus={(e) => e.target.classList.add('input-focused')}
+                        onBlur={(e) => e.target.classList.remove('input-focused')}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Return URL</label>
+                    <input
+                      style={styles.input}
+                      className="config-input"
+                      type="url"
+                      value={orderConfig.returnUrl}
+                      onChange={(e) => handleOrderConfigChange('returnUrl', e.target.value)}
+                      placeholder={`${window.location.origin}/ReceiptPage`}
+                      onFocus={(e) => e.target.classList.add('input-focused')}
+                      onBlur={(e) => e.target.classList.remove('input-focused')}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Advanced Mode - JSON Configuration */}
+              {useAdvancedMode && ENABLE_ADVANCED_MODE && (
+                <>
+                  <div style={styles.sectionTitle}>
+                    ⚙️ Advanced JSON Configuration
+                  </div>
+                  <div style={styles.infoBox}>
+                    <span>🔧</span>
+                    <div>
+                      <strong>Advanced JSON Mode:</strong> Edit the complete JSON request payload for full control. 
+                      Use "ORDER_PLACEHOLDER" for the order ID - it will be auto-generated with a unique timestamp and random string.
+                    </div>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>JSON Request Payload</label>
+                    <textarea
+                      style={{
+                        ...styles.textarea,
+                        ...(jsonError ? styles.textareaError : {})
+                      }}
+                      value={jsonPayload}
+                      onChange={(e) => handleJsonChange(e.target.value)}
+                      placeholder="Enter complete JSON payload..."
+                    />
+                    {jsonError && (
+                      <div style={styles.jsonError}>
+                        <strong>JSON Error:</strong> {jsonError}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <div style={styles.configActions}>
+              <button 
+                onClick={() => setCurrentView('cart')}
+                style={styles.backButton}
+                className="back-button"
+              >
+                ← Back to Shopping Cart
+              </button>
+              
+              <button 
+                onClick={resetToDefaults}
+                className="secondary-button"
+                style={{...styles.secondaryButton, width: 'auto'}}
+              >
+                🔄 Reset to Defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* ========== EMBEDDED CHECKOUT VIEW ========== */}
+      {currentView === 'embedded' && (
+        <div style={styles.embeddedContainer}>
+          <div style={styles.embeddedHeader}>
+            <div style={styles.embeddedHeaderContent}>
+              <img 
+                src="/logo.png" 
+                alt="Company Logo" 
+                style={styles.embeddedLogo}
+                onError={(e) => e.target.style.display = 'none'}
+              />
+              <h1 style={styles.embeddedTitle}>Complete Your Payment</h1>
+            </div>
+            <button 
+              onClick={() => {
+                setCurrentView('cart');
+                setPaymentSession(null);
+                setCheckoutMode(null);
+                if (typeof(Storage) !== "undefined") {
+                  sessionStorage.clear();
+                }
+              }}
+              style={styles.backButton}
+              className="back-button"
+            >
+              ← Back to Cart
+            </button>
+          </div>
+          
+          {error && (
+            <div style={styles.errorBanner}>
+              ⚠️ {error}
+            </div>
           )}
-
-          <button 
-            onClick={openCheckoutPage} 
-            className="payment-button"
-            style={{
-              ...styles.paymentButton,
-              ...(isLoadingSession || !isFormValid() ? styles.paymentButtonDisabled : {})
-            }}
-            disabled={isLoadingSession || !isFormValid()}
-          >
-            {isLoadingSession ? (
-              <>
-                <div style={styles.spinner}></div>
-                <span>Initializing Payment Session...</span>
-              </>
-            ) : (
-              <>
-                💳 <span>Proceed to Secure Checkout (${getCurrentAmount()} {useAdvancedMode ? 
-                  ((() => {
-                    try {
-                      return JSON.parse(jsonPayload).order?.currency || 'USD';
-                    } catch {
-                      return 'USD';
-                    }
-                  })()) : orderConfig.currency})</span>
-              </>
-            )}
-          </button>
-
-          <button 
-            onClick={resetToDefaults}
-            className="secondary-button"
-            style={styles.secondaryButton}
-          >
-            🔄 Reset to Defaults
-          </button>
+          
+          <div style={styles.embeddedContent}>
+            <div id="hco-embedded"></div>
+          </div>
+        </div>
+      )}
+      
+      {/* ========== FLOATING MESSAGES ========== */}
+      {error && currentView === 'cart' && (
+        <div style={styles.floatingError}>
+          ⚠️ {error}
+        </div>
+      )}
+      
+      {success && (
+        <div style={styles.floatingSuccess}>
+          ✓ {success}
         </div>
       )}
     </div>
