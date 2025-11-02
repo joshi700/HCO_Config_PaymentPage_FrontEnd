@@ -140,40 +140,44 @@ function HomePage() {
 
   // Configure checkout when script is loaded and session is available
   useEffect(() => {
-    if (isCheckoutReady && window.Checkout && paymentSession) {
-      debugLog('Configuring checkout with session:', paymentSession);
-      
-      try {
-        setTimeout(() => {
-          const configObj = {
-            session: {
-              id: paymentSession
-            }
-          };
-          
-          debugLog('Configuration object:', configObj);
-          window.Checkout.configure(configObj);
-          debugLog('Configuration completed successfully');
-          
-          // Show payment page after configuration
+  if (isCheckoutReady && window.Checkout && paymentSession) {
+    debugLog('Configuring checkout with session:', paymentSession);
+    
+    try {
+      setTimeout(() => {
+        const configObj = {
+          session: {
+            id: paymentSession
+          }
+        };
+        
+        debugLog('Configuration object:', configObj);
+        window.Checkout.configure(configObj);
+        debugLog('Configuration completed successfully');
+        
+        // Only show payment page for hosted mode
+        if (checkoutMode === 'hosted') {
           setTimeout(() => {
             try {
+              debugLog('Showing hosted payment page...');
               window.Checkout.showPaymentPage();
-              debugLog('Payment page displayed successfully');
+              debugLog('Hosted payment page displayed');
             } catch (showError) {
               console.error('Error showing payment page:', showError);
               setError('Failed to display payment page: ' + showError.message);
-              setShowConfigForm(true);
             }
           }, 500);
-        }, 100);
+        }
+        // Embedded mode is handled by the separate useEffect
         
-      } catch (configError) {
-        console.error('Error configuring checkout:', configError);
-        setError('Failed to configure payment system: ' + configError.message);
-      }
+      }, 100);
+      
+    } catch (configError) {
+      console.error('Error configuring checkout:', configError);
+      setError('Failed to configure payment system: ' + configError.message);
     }
-  }, [isCheckoutReady, paymentSession]);
+  }
+}, [isCheckoutReady, paymentSession, checkoutMode, debugLog]);
 
   // Display embedded form when view changes to embedded
 useEffect(() => {
