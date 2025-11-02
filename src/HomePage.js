@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 function HomePage() {
   // State Management
+  const [currentView, setCurrentView] = useState('cart'); // 'cart', 'config', 'embedded'
+  const [checkoutMode, setCheckoutMode] = useState(null); // 'hosted', 'embedded'
   const [paymentSession, setPaymentSession] = useState(null);
   const [isCheckoutReady, setIsCheckoutReady] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
