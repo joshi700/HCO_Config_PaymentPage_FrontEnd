@@ -175,6 +175,32 @@ function HomePage() {
     }
   }, [isCheckoutReady, paymentSession]);
 
+  // Display embedded form when view changes to embedded
+useEffect(() => {
+  if (currentView === 'embedded' && isCheckoutReady && window.Checkout && paymentSession) {
+    debugLog('Displaying embedded checkout form');
+    
+    setTimeout(() => {
+      try {
+        const embeddedElement = document.getElementById('hco-embedded');
+        if (!embeddedElement) {
+          throw new Error('Embedded container element not found');
+        }
+        
+        debugLog('Calling showEmbeddedPage...');
+        window.Checkout.showEmbeddedPage('#hco-embedded');
+        debugLog('Embedded form displayed successfully');
+        
+      } catch (showError) {
+        console.error('Error showing embedded page:', showError);
+        setError('Failed to display embedded payment form: ' + showError.message);
+        setCurrentView('cart');
+        setPaymentSession(null);
+      }
+    }, 600); // Wait for configuration to complete
+  }
+}, [currentView, isCheckoutReady, paymentSession, debugLog]);
+  
   // Save configuration to localStorage if enabled
   const saveConfigToStorage = useCallback((newConfig, newOrderConfig) => {
     if (ENABLE_CONFIG_SAVE) {
