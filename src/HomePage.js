@@ -512,47 +512,39 @@ function HomePage() {
 };
   
   const openCheckoutPage = async () => {
-    try {
-      // Validate payload
-      getValidatedPayload(); // This will throw if invalid
-
-      // Save current configuration
-      saveConfigToStorage(config, orderConfig);
-
-      // Hide configuration form
-      setShowConfigForm(false);
-      
-      // Clear previous state
-      debugLog('Clearing all previous checkout state...');
-      setPaymentSession(null);
-      setError(null);
-      setIsCheckoutReady(false);
-      
-      // Clear sessionStorage
-      if (typeof(Storage) !== "undefined") {
-        sessionStorage.clear();
-      }
-      
-      // Force script reload
-      setScriptKey(prev => prev + 1);
-      
-      // Wait for cleanup
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Get new session ID
-      const sessionId = await getSessionId();
-      
-      // Set the new session ID
-      const trimmedSessionId = sessionId.trim();
-      debugLog('Setting NEW session ID:', trimmedSessionId);
-      setPaymentSession(trimmedSessionId);
-      
-    } catch (error) {
-      console.error('Failed to open checkout page:', error);
-      setError(error.message);
-      setShowConfigForm(true); // Show form again on error
+  try {
+    debugLog('Initializing hosted checkout...');
+    
+    setPaymentSession(null);
+    setError(null);
+    setIsCheckoutReady(false);
+    setIsLoadingSession(true);
+    
+    if (typeof(Storage) !== "undefined") {
+      sessionStorage.clear();
     }
-  };
+    
+    setScriptKey(prev => prev + 1);
+    
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    const sessionId = await getSessionId();
+    const trimmedSessionId = sessionId.trim();
+    
+    debugLog('Session ID for hosted:', trimmedSessionId);
+    
+    setPaymentSession(trimmedSessionId);
+    setCheckoutMode('hosted');
+    
+    // Show payment page will happen in the useEffect
+    
+  } catch (error) {
+    console.error('Failed to open checkout page:', error);
+    setError('Failed to initialize checkout: ' + error.message);
+  } finally {
+    setIsLoadingSession(false);
+  }
+};
 
   const styles = {
     app: {
