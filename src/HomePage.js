@@ -473,6 +473,44 @@ function HomePage() {
     }
   };
 
+  const openEmbeddedCheckout = async () => {
+  try {
+    setError(null);
+    setIsLoadingSession(true);
+    
+    debugLog('Initializing embedded checkout...');
+    
+    // Clear previous session
+    setPaymentSession(null);
+    if (typeof(Storage) !== "undefined") {
+      sessionStorage.clear();
+    }
+    
+    // Force script reload
+    setScriptKey(prev => prev + 1);
+    
+    // Small delay for cleanup
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Get new session
+    const sessionId = await getSessionId();
+    const trimmedSessionId = sessionId.trim();
+    
+    debugLog('Session ID for embedded:', trimmedSessionId);
+    
+    setPaymentSession(trimmedSessionId);
+    setCurrentView('embedded');
+    setCheckoutMode('embedded');
+    
+  } catch (error) {
+    console.error('Failed to open embedded checkout:', error);
+    setError('Failed to initialize embedded checkout: ' + error.message);
+    setCurrentView('cart');
+  } finally {
+    setIsLoadingSession(false);
+  }
+};
+  
   const openCheckoutPage = async () => {
     try {
       // Validate payload
