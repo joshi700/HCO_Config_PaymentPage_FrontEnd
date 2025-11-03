@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Logo from './components/Logo';
 
 function ShoppingCart({ 
   onCheckoutHosted, 
@@ -7,6 +9,7 @@ function ShoppingCart({
   isConfigured,
   isLoading 
 }) {
+  const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
 
   const sampleProduct = {
@@ -319,25 +322,13 @@ function ShoppingCart({
       {/* Header with Logo and Settings Icon */}
       <div style={styles.header}>
         <div style={styles.logoSection}>
-          <img 
-            src="/logo.png" 
-            alt="Company Logo" 
-            style={styles.logo}
-            onError={(e) => {
-              // Fallback if logo image doesn't exist
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
-          />
-          <div style={{...styles.logoFallback, display: 'none'}}>
-            <span style={styles.logoIcon}>💳</span>
-          </div>
+          <Logo size="medium" />
           <h1 style={styles.title}>Shopping Cart</h1>
         </div>
         <button 
-          onClick={onOpenSettings}
+          onClick={() => navigate('/config')}
           style={styles.settingsButton}
-          title="API Configuration Settings"
+          title="Configuration Settings"
           onMouseOver={(e) => {
             e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)';
           }}
