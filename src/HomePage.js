@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ShoppingCart from './ShoppingCart';
+import Logo from './components/Logo';
 
 function HomePage() {
   // State Management
@@ -1370,12 +1371,7 @@ function HomePage() {
         <div style={styles.embeddedContainer}>
           <div style={styles.embeddedHeader}>
             <div style={styles.embeddedHeaderContent}>
-              <img 
-                src="/logo.png" 
-                alt="Company Logo" 
-                style={styles.embeddedLogo}
-                onError={(e) => e.target.style.display = 'none'}
-              />
+              <Logo size="medium" />
               <h1 style={styles.embeddedTitle}>Complete Your Payment</h1>
             </div>
             <button 
