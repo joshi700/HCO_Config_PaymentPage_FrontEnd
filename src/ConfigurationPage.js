@@ -14,6 +14,30 @@ function ConfigurationPage() {
   const [saveMessage, setSaveMessage] = useState('');
   const [imageInfo, setImageInfo] = useState(null);
   const [validationMessage, setValidationMessage] = useState('');
+  
+  // JSON Payload state for Advanced Mode
+  const [jsonPayload, setJsonPayload] = useState(`{
+  "apiOperation": "INITIATE_CHECKOUT",
+  "checkoutMode": "WEBSITE",
+  "interaction": {
+    "operation": "PURCHASE",
+    "displayControl": {
+      "billingAddress": "HIDE"
+    },
+    "merchant": { 
+      "name": "JK Enterprises LLC",
+      "url": "https://mastercard.com/"
+    },
+    "returnUrl": "${window.location.origin}/ReceiptPage"
+  },
+  "order": {
+    "currency": "USD",
+    "amount": "99.00",
+    "id": "ORDER_PLACEHOLDER",
+    "description": "Goods and Services"
+  }
+}`);
+  const [jsonError, setJsonError] = useState(null);
 
   // API Configuration
   const [apiConfig, setApiConfig] = useState({
@@ -31,6 +55,18 @@ function ConfigurationPage() {
         setApiConfig(JSON.parse(savedConfig));
       } catch (e) {
         console.error('Error loading saved configuration:', e);
+      }
+    }
+    
+    // Load saved JSON payload
+    const savedJsonPayload = localStorage.getItem('advancedJsonPayload');
+    if (savedJsonPayload) {
+      setJsonPayload(savedJsonPayload);
+      // Validate loaded JSON
+      try {
+        JSON.parse(savedJsonPayload);
+      } catch (e) {
+        setJsonError(`Invalid JSON: ${e.message}`);
       }
     }
   }, []);
@@ -115,6 +151,26 @@ function ConfigurationPage() {
   const handleSaveApiConfig = () => {
     localStorage.setItem('apiConfiguration', JSON.stringify(apiConfig));
     showSaveMessage('API configuration saved successfully!');
+  };
+  
+  const handleJsonChange = (value) => {
+    setJsonPayload(value);
+    setJsonError(null);
+    
+    try {
+      JSON.parse(value);
+    } catch (e) {
+      setJsonError(`Invalid JSON: ${e.message}`);
+    }
+  };
+  
+  const handleSaveJsonConfig = () => {
+    if (jsonError) {
+      alert('Please fix JSON errors before saving.');
+      return;
+    }
+    localStorage.setItem('advancedJsonPayload', jsonPayload);
+    showSaveMessage('Advanced JSON configuration saved successfully!');
   };
 
   const showSaveMessage = (message) => {
@@ -284,6 +340,31 @@ function ConfigurationPage() {
     hiddenInput: {
       display: 'none',
     },
+    textarea: {
+      width: '100%',
+      padding: '16px',
+      border: '2px solid #e5e7eb',
+      borderRadius: '8px',
+      fontSize: '13px',
+      minHeight: '420px',
+      resize: 'vertical',
+      fontFamily: '"Fira Code", "JetBrains Mono", Monaco, Menlo, "Ubuntu Mono", monospace',
+      boxSizing: 'border-box',
+      lineHeight: '1.5',
+      backgroundColor: '#f8fafc',
+    },
+    textareaError: {
+      borderColor: '#ef4444',
+    },
+    jsonError: {
+      marginTop: '12px',
+      padding: '12px',
+      backgroundColor: '#fee2e2',
+      border: '1px solid #ef4444',
+      borderRadius: '6px',
+      color: '#991b1b',
+      fontSize: '14px',
+    },
   };
 
   return (
@@ -326,6 +407,15 @@ function ConfigurationPage() {
             onClick={() => setActiveTab('api')}
           >
             API Configuration
+          </button>
+          <button
+            style={{
+              ...styles.tab,
+              ...(activeTab === 'advanced' ? styles.activeTab : {})
+            }}
+            onClick={() => setActiveTab('advanced')}
+          >
+            Advanced JSON
           </button>
         </div>
 
@@ -498,6 +588,48 @@ function ConfigurationPage() {
             <div style={styles.infoBox}>
               <p style={styles.infoText}>
                 <strong>🔒 Security:</strong> API credentials are stored locally in your browser.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'advanced' && (
+          <div style={styles.card}>
+            <h2 style={styles.sectionTitle}>⚙️ Advanced JSON Configuration</h2>
+            
+            <div style={styles.infoBox}>
+              <p style={styles.infoText}>
+                <strong>🔧 Advanced JSON Mode:</strong> Edit the complete JSON request payload for full control. 
+                Use "ORDER_PLACEHOLDER" for the order ID - it will be auto-generated with a unique timestamp and random string.
+              </p>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>JSON Request Payload</label>
+              <textarea
+                style={{
+                  ...styles.textarea,
+                  ...(jsonError ? styles.textareaError : {})
+                }}
+                value={jsonPayload}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                placeholder="Enter complete JSON payload..."
+              />
+              {jsonError && (
+                <div style={styles.jsonError}>
+                  <strong>JSON Error:</strong> {jsonError}
+                </div>
+              )}
+            </div>
+
+            <button style={styles.uploadButton} onClick={handleSaveJsonConfig}>
+              💾 Save JSON Configuration
+            </button>
+
+            <div style={styles.infoBox}>
+              <p style={styles.infoText}>
+                <strong>ℹ️ Note:</strong> This JSON payload will be used for advanced checkout scenarios. 
+                Make sure your JSON is valid before saving.
               </p>
             </div>
           </div>
