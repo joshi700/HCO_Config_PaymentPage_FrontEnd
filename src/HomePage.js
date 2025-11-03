@@ -78,6 +78,23 @@ function HomePage() {
 
   const [jsonError, setJsonError] = useState(null);
 
+  // Load API configuration from localStorage on mount
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('apiConfiguration');
+    if (savedConfig) {
+      try {
+        const parsedConfig = JSON.parse(savedConfig);
+        setConfig(prevConfig => ({
+          ...prevConfig,
+          ...parsedConfig
+        }));
+        debugLog('Loaded API configuration from localStorage:', parsedConfig);
+      } catch (e) {
+        console.error('Error loading API configuration:', e);
+      }
+    }
+  }, []);
+
   // Connection check on component mount
   useEffect(() => {
     checkConnection();
