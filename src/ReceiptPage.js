@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Logo from './components/Logo';
 
 function ReceiptPage() {
   const [receiptData, setReceiptData] = useState({
@@ -116,17 +117,7 @@ function ReceiptPage() {
         borderRadius: '10px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
       }}>
-        <img 
-          src="/logo.png" 
-          alt="Company Logo" 
-          style={{
-            height: '50px',
-            width: 'auto',
-            maxWidth: '200px',
-            objectFit: 'contain',
-          }}
-          onError={(e) => e.target.style.display = 'none'}
-        />
+        <Logo size="medium" />
       </div>
 
       {/* Success/Failure Header */}
