@@ -409,10 +409,19 @@ function HomePage() {
 
   // Validate and parse JSON payload
   const getValidatedPayload = useCallback(() => {
+    console.log('🔍 getValidatedPayload called - Mode:', useAdvancedMode ? 'ADVANCED' : 'SIMPLE');
+    
     if (useAdvancedMode) {
+      console.log('📝 Using Advanced JSON Mode');
+      console.log('📝 Current jsonPayload preview:', jsonPayload.substring(0, 200) + '...');
+      
       try {
         const updatedJson = updateJsonWithOrderId(jsonPayload);
         const parsed = JSON.parse(updatedJson);
+        
+        console.log('✅ JSON parsed successfully');
+        console.log('💰 Currency in parsed JSON:', parsed.order?.currency);
+        console.log('💵 Amount in parsed JSON:', parsed.order?.amount);
         
         // Ensure required fields are present
         if (!parsed.apiOperation) {
@@ -425,14 +434,20 @@ function HomePage() {
           throw new Error('order.currency is required');
         }
         
+        console.log('✅ Validation passed - returning payload');
         return parsed;
       } catch (e) {
+        console.error('❌ JSON Validation Error:', e.message);
         throw new Error(`JSON Validation Error: ${e.message}`);
       }
     } else {
+      console.log('📋 Using Simple Form Mode');
+      console.log('💰 Currency from orderConfig:', orderConfig.currency);
+      console.log('💵 Amount from orderConfig:', orderConfig.amount);
+      
       // Use simple form mode
       const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      return {
+      const payload = {
         "apiOperation": "INITIATE_CHECKOUT",
         "checkoutMode": "WEBSITE",
         "interaction": {
@@ -450,6 +465,9 @@ function HomePage() {
           "description": orderConfig.description
         }
       };
+      
+      console.log('✅ Simple mode payload created');
+      return payload;
     }
   }, [useAdvancedMode, jsonPayload, orderConfig]);
 
@@ -459,6 +477,11 @@ function HomePage() {
     setError(null);
     
     try {
+      console.log('');
+      console.log('='.repeat(80));
+      console.log('🚀 CREATING PAYMENT SESSION');
+      console.log('='.repeat(80));
+      
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
@@ -474,6 +497,16 @@ function HomePage() {
         ...config, // Include auth config
         ...validatedPayload // Spread the payload directly
       };
+
+      console.log('');
+      console.log('📤 FINAL REQUEST BODY:');
+      console.log(JSON.stringify(requestBody, null, 2));
+      console.log('');
+      console.log('💰 CURRENCY IN REQUEST:', requestBody.order?.currency || 'NOT FOUND');
+      console.log('💵 AMOUNT IN REQUEST:', requestBody.order?.amount || 'NOT FOUND');
+      console.log('🆔 ORDER ID IN REQUEST:', requestBody.order?.id || 'NOT FOUND');
+      console.log('='.repeat(80));
+      console.log('');
 
       debugLog('Sending request to:', API_BASE_URL);
       debugLog('Request body:', requestBody);
@@ -505,6 +538,11 @@ function HomePage() {
       }
 
       const data = await response.json();
+      console.log('');
+      console.log('✅ RESPONSE RECEIVED FROM BACKEND');
+      console.log('Response data:', data);
+      console.log('='.repeat(80));
+      console.log('');
       debugLog('Response received:', data);
       
       if (data.sessionId) {
