@@ -50,7 +50,7 @@ function HomePage() {
     returnUrl: `${window.location.origin}/ReceiptPage`
   });
 
-  const [useAdvancedMode, setUseAdvancedMode] = useState(false);
+  const [useAdvancedMode, setUseAdvancedMode] = useState(true); // Changed to true - start in Advanced mode by default
   const [showApiTest, setShowApiTest] = useState(false);
 
   // JSON payload for advanced mode with hardcoded defaults
@@ -94,6 +94,19 @@ function HomePage() {
       }
     }
   }, []);
+
+  // Monitor jsonPayload state changes for debugging
+  useEffect(() => {
+    if (useAdvancedMode && DEBUG_MODE) {
+      console.log('📝 jsonPayload state updated');
+      try {
+        const parsed = JSON.parse(jsonPayload);
+        console.log('💰 Current currency in state:', parsed.order?.currency);
+      } catch (e) {
+        // Ignore parse errors during typing
+      }
+    }
+  }, [jsonPayload, useAdvancedMode, DEBUG_MODE]);
 
   // Connection check on component mount
   useEffect(() => {
@@ -583,8 +596,10 @@ function HomePage() {
       // Force script reload
       setScriptKey(prev => prev + 1);
       
-      // Small delay for cleanup
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Small delay for cleanup and to ensure React state is fully updated
+      // This is critical: if user edited JSON and immediately clicked checkout,
+      // we need to ensure the jsonPayload state has fully updated before reading it
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Get new session
       const sessionId = await getSessionId();
@@ -620,7 +635,10 @@ function HomePage() {
       
       setScriptKey(prev => prev + 1);
       
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Small delay to ensure React state is fully updated
+      // This is critical: if user edited JSON and immediately clicked checkout,
+      // we need to ensure the jsonPayload state has fully updated before reading it
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const sessionId = await getSessionId();
       const trimmedSessionId = sessionId.trim();
