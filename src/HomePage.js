@@ -69,7 +69,7 @@ function HomePage() {
     "returnUrl": "${window.location.origin}/ReceiptPage"
   },
   "order": {
-    "currency": "USD",
+    "currency": "EUR",
     "amount": "99.00",
     "id": "ORDER_PLACEHOLDER",
     "description": "Goods and Services"
@@ -363,7 +363,7 @@ function HomePage() {
     "returnUrl": "${window.location.origin}/ReceiptPage"
   },
   "order": {
-    "currency": "USD",
+    "currency": "EUR",
     "amount": "99.00",
     "id": "ORDER_PLACEHOLDER",
     "description": "Goods and Services"
