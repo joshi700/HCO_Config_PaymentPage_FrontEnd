@@ -67,7 +67,7 @@ function HomePage() {
     "returnUrl": "${window.location.origin}/ReceiptPage"
   },
   "order": {
-    "currency": "EUR",
+    "currency": "USD",
     "amount": "99.00",
     "id": "ORDER_PLACEHOLDER",
     "description": "Goods and Services"
@@ -86,7 +86,12 @@ function HomePage() {
           ...prevConfig,
           ...parsedConfig
         }));
-        debugLog('Loaded API configuration from localStorage:', parsedConfig);
+        // Log without exposing password
+        const safeConfig = { ...parsedConfig };
+        if (safeConfig.password) {
+          safeConfig.password = '***HIDDEN***';
+        }
+        debugLog('Loaded API configuration from localStorage:', safeConfig);
       } catch (e) {
         console.error('Error loading API configuration:', e);
       }
@@ -96,10 +101,11 @@ function HomePage() {
   // Monitor jsonPayload state changes for debugging
   useEffect(() => {
     if (useAdvancedMode && DEBUG_MODE) {
-      console.log('📝 jsonPayload state updated');
+      console.log('📝 jsonPayload state updated (Advanced JSON Mode)');
       try {
         const parsed = JSON.parse(jsonPayload);
-        console.log('💰 Current currency in state:', parsed.order?.currency);
+        console.log('💰 Currency from Advanced JSON:', parsed.order?.currency);
+        console.log('💵 Amount from Advanced JSON:', parsed.order?.amount);
       } catch (e) {
         // Ignore parse errors during typing
       }
@@ -241,6 +247,7 @@ function HomePage() {
       try {
         const savedConfig = localStorage.getItem('mastercardConfig');
         const savedOrderConfig = localStorage.getItem('mastercardOrderConfig');
+        const savedJsonPayload = localStorage.getItem('mastercardJsonPayload');
         const timestamp = localStorage.getItem('mastercardConfigTimestamp');
         
         // Check if saved config is not too old (24 hours)
@@ -257,11 +264,24 @@ function HomePage() {
           setOrderConfig(prevConfig => ({ ...prevConfig, ...parsed }));
           debugLog('Loaded order configuration from localStorage');
         }
+        
+        if (savedJsonPayload && isConfigFresh) {
+          setJsonPayload(savedJsonPayload);
+          debugLog('Loaded JSON payload from localStorage');
+          // Parse and log the currency for clarity
+          try {
+            const parsed = JSON.parse(savedJsonPayload);
+            console.log('💰 Loaded currency from localStorage:', parsed.order?.currency);
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
       } catch (e) {
         debugLog('Failed to load configuration from localStorage:', e);
         // Clear corrupted data
         localStorage.removeItem('mastercardConfig');
         localStorage.removeItem('mastercardOrderConfig');
+        localStorage.removeItem('mastercardJsonPayload');
         localStorage.removeItem('mastercardConfigTimestamp');
       }
     }
@@ -309,10 +329,16 @@ function HomePage() {
     
     try {
       JSON.parse(value);
+      // Auto-save valid JSON to localStorage
+      if (ENABLE_CONFIG_SAVE) {
+        localStorage.setItem('mastercardJsonPayload', value);
+        localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
+        debugLog('Saved JSON payload to localStorage');
+      }
     } catch (e) {
       setJsonError(`Invalid JSON: ${e.message}`);
     }
-  }, []);
+  }, [ENABLE_CONFIG_SAVE, debugLog]);
 
   // Reset to hardcoded defaults
   const resetToDefaults = useCallback(() => {
@@ -333,12 +359,15 @@ function HomePage() {
       returnUrl: `${window.location.origin}/ReceiptPage`
     });
 
-    // Update JSON payload
+    // Update JSON payload - Changed default to USD to match orderConfig
     setJsonPayload(`{
   "apiOperation": "INITIATE_CHECKOUT",
   "checkoutMode": "WEBSITE",
   "interaction": {
     "operation": "PURCHASE",
+    "displayControl": {
+            "billingAddress": "HIDE"
+        },
     "merchant": { 
       "name": "ABC Enterprises LLC",
       "url": "https://microsoft.com/"
@@ -346,7 +375,7 @@ function HomePage() {
     "returnUrl": "${window.location.origin}/ReceiptPage"
   },
   "order": {
-    "currency": "EUR",
+    "currency": "USD",
     "amount": "99.00",
     "id": "ORDER_PLACEHOLDER",
     "description": "Goods and Services"
@@ -357,6 +386,7 @@ function HomePage() {
     if (ENABLE_CONFIG_SAVE) {
       localStorage.removeItem('mastercardConfig');
       localStorage.removeItem('mastercardOrderConfig');
+      localStorage.removeItem('mastercardJsonPayload');
       localStorage.removeItem('mastercardConfigTimestamp');
     }
 
@@ -464,9 +494,15 @@ function HomePage() {
         ...validatedPayload // Spread the payload directly
       };
 
+      // Create sanitized version for logging (without password)
+      const sanitizedRequestBody = { ...requestBody };
+      if (sanitizedRequestBody.password) {
+        sanitizedRequestBody.password = '***HIDDEN***';
+      }
+
       console.log('');
       console.log('📤 FINAL REQUEST BODY:');
-      console.log(JSON.stringify(requestBody, null, 2));
+      console.log(JSON.stringify(sanitizedRequestBody, null, 2));
       console.log('');
       console.log('💰 CURRENCY IN REQUEST:', requestBody.order?.currency || 'NOT FOUND');
       console.log('💵 AMOUNT IN REQUEST:', requestBody.order?.amount || 'NOT FOUND');
@@ -475,7 +511,7 @@ function HomePage() {
       console.log('');
 
       debugLog('Sending request to:', API_BASE_URL);
-      debugLog('Request body:', requestBody);
+      debugLog('Request body:', sanitizedRequestBody);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
