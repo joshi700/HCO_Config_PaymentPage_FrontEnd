@@ -13,13 +13,23 @@ function HomePage() {
   const [success, setSuccess] = useState(null);
   const [scriptKey, setScriptKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('checking');
+  const [lastSessionId, setLastSessionId] = useState(null);
   
   // Application configuration - no environment variables
   const API_BASE_URL = 'https://hco-config-payment-page-backend.vercel.app'
   //'https://hco-configurable-embedded-backend.vercel.app';
+  const DEBUG_MODE = true;
+  const ENABLE_CONSOLE_LOGS = true;
   const ENABLE_ADVANCED_MODE = true;
   const ENABLE_CONFIG_SAVE = true;
   const API_TIMEOUT = 30000;
+  
+  // Helper function for conditional logging
+  const debugLog = useCallback((...args) => {
+    if (ENABLE_CONSOLE_LOGS && DEBUG_MODE) {
+      // Logging disabled for production
+    }
+  }, [ENABLE_CONSOLE_LOGS, DEBUG_MODE]);
 
   // Configuration for API credentials with hardcoded defaults
   const [config, setConfig] = useState({
@@ -41,6 +51,7 @@ function HomePage() {
   });
 
   const [useAdvancedMode, setUseAdvancedMode] = useState(true); // Changed to true - start in Advanced mode by default
+  const [showApiTest, setShowApiTest] = useState(false);
 
   // JSON payload for advanced mode with hardcoded defaults
   const [jsonPayload, setJsonPayload] = useState(`{
@@ -77,11 +88,19 @@ function HomePage() {
           ...prevConfig,
           ...parsedConfig
         }));
+        debugLog('Loaded API configuration from localStorage:', parsedConfig);
       } catch (e) {
-        console.error('Error loading API configuration:', e);
+        // Error loading API configuration
       }
     }
   }, []);
+
+  // Monitor jsonPayload state changes for debugging
+  useEffect(() => {
+    if (useAdvancedMode && DEBUG_MODE) {
+      // Debug mode monitoring disabled
+    }
+  }, [jsonPayload, useAdvancedMode, DEBUG_MODE]);
 
   // Connection check on component mount
   useEffect(() => {
@@ -98,12 +117,15 @@ function HomePage() {
       });
       
       if (response.ok) {
+        const data = await response.json();
         setConnectionStatus('connected');
+        debugLog('Backend connection successful:', data);
       } else {
         setConnectionStatus('error');
       }
     } catch (error) {
       setConnectionStatus('error');
+      debugLog('Backend connection failed:', error);
     }
   };
 
@@ -120,10 +142,10 @@ function HomePage() {
       script.src = `${config.apiBaseUrl}/static/checkout/checkout.min.js`;
       script.async = true;
       script.onload = () => {
+        debugLog('Checkout script loaded successfully');
         setIsCheckoutReady(true);
       };
       script.onerror = () => {
-        console.error('Failed to load checkout script');
         setError('Failed to load payment system. Please check your API Base URL and try again.');
         setIsCheckoutReady(false);
       };
@@ -143,6 +165,8 @@ function HomePage() {
   // Configure checkout when script is loaded and session is available
   useEffect(() => {
     if (isCheckoutReady && window.Checkout && paymentSession) {
+      debugLog('Configuring checkout with session:', paymentSession);
+      
       try {
         setTimeout(() => {
           const configObj = {
@@ -151,15 +175,18 @@ function HomePage() {
             }
           };
           
+          debugLog('Configuration object:', configObj);
           window.Checkout.configure(configObj);
+          debugLog('Configuration completed successfully');
           
           // Only show payment page for hosted mode
           if (checkoutMode === 'hosted') {
             setTimeout(() => {
               try {
+                debugLog('Showing hosted payment page...');
                 window.Checkout.showPaymentPage();
+                debugLog('Hosted payment page displayed');
               } catch (showError) {
-                console.error('Error showing payment page:', showError);
                 setError('Failed to display payment page: ' + showError.message);
               }
             }, 500);
@@ -169,15 +196,16 @@ function HomePage() {
         }, 100);
         
       } catch (configError) {
-        console.error('Error configuring checkout:', configError);
         setError('Failed to configure payment system: ' + configError.message);
       }
     }
-  }, [isCheckoutReady, paymentSession, checkoutMode]);
+  }, [isCheckoutReady, paymentSession, checkoutMode, debugLog]);
 
   // Display embedded form when view changes to embedded
   useEffect(() => {
     if (currentView === 'embedded' && isCheckoutReady && window.Checkout && paymentSession) {
+      debugLog('Displaying embedded checkout form');
+      
       setTimeout(() => {
         try {
           const embeddedElement = document.getElementById('hco-embedded');
@@ -185,18 +213,35 @@ function HomePage() {
             throw new Error('Embedded container element not found');
           }
           
+          debugLog('Calling showEmbeddedPage...');
           window.Checkout.showEmbeddedPage('#hco-embedded');
+          debugLog('Embedded form displayed successfully');
           
         } catch (showError) {
-          console.error('Error showing embedded page:', showError);
           setError('Failed to display embedded payment form: ' + showError.message);
           setCurrentView('cart');
           setPaymentSession(null);
         }
       }, 600); // Wait for configuration to complete
     }
-  }, [currentView, isCheckoutReady, paymentSession]);
+  }, [currentView, isCheckoutReady, paymentSession, debugLog]);
   
+  // Save configuration to localStorage if enabled
+  const saveConfigToStorage = useCallback((newConfig, newOrderConfig) => {
+    if (ENABLE_CONFIG_SAVE) {
+      try {
+        localStorage.setItem('mastercardConfig', JSON.stringify(newConfig));
+        localStorage.setItem('mastercardOrderConfig', JSON.stringify(newOrderConfig));
+        localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
+        debugLog('Configuration saved to localStorage');
+        setSuccess('Configuration saved successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (e) {
+        debugLog('Failed to save configuration:', e);
+      }
+    }
+  }, [ENABLE_CONFIG_SAVE, debugLog]);
+
   // Load configuration from localStorage if available
   useEffect(() => {
     if (ENABLE_CONFIG_SAVE) {
@@ -211,20 +256,23 @@ function HomePage() {
         if (savedConfig && isConfigFresh) {
           const parsed = JSON.parse(savedConfig);
           setConfig(prevConfig => ({ ...prevConfig, ...parsed }));
+          debugLog('Loaded configuration from localStorage');
         }
         
         if (savedOrderConfig && isConfigFresh) {
           const parsed = JSON.parse(savedOrderConfig);
           setOrderConfig(prevConfig => ({ ...prevConfig, ...parsed }));
+          debugLog('Loaded order configuration from localStorage');
         }
       } catch (e) {
+        debugLog('Failed to load configuration from localStorage:', e);
         // Clear corrupted data
         localStorage.removeItem('mastercardConfig');
         localStorage.removeItem('mastercardOrderConfig');
         localStorage.removeItem('mastercardConfigTimestamp');
       }
     }
-  }, [ENABLE_CONFIG_SAVE]);
+  }, [ENABLE_CONFIG_SAVE, debugLog]);
 
   // Handle config changes with automatic username generation
   const handleConfigChange = useCallback((field, value) => {
@@ -322,7 +370,39 @@ function HomePage() {
     setError(null);
     setSuccess('Reset to default configuration!');
     setTimeout(() => setSuccess(null), 3000);
-  }, [ENABLE_CONFIG_SAVE]);
+    debugLog('Reset to hardcoded defaults');
+  }, [ENABLE_CONFIG_SAVE, debugLog]);
+
+  // Test API connection
+  const testApiConnection = async () => {
+    try {
+      setIsLoadingSession(true);
+      setError(null);
+      
+      const response = await fetch(`${API_BASE_URL}/test-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+        timeout: API_TIMEOUT
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSuccess('API connection test successful!');
+        debugLog('API test response:', data);
+      } else {
+        throw new Error(data.error || 'API test failed');
+      }
+    } catch (error) {
+      setError(`API Test Failed: ${error.message}`);
+    } finally {
+      setIsLoadingSession(false);
+      setTimeout(() => setSuccess(null), 5000);
+    }
+  };
 
   // Generate order ID and update JSON
   const updateJsonWithOrderId = (json) => {
@@ -400,6 +480,9 @@ function HomePage() {
         ...validatedPayload // Spread the payload directly
       };
 
+      debugLog('Sending request to:', API_BASE_URL);
+      debugLog('Request body:', requestBody);
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
@@ -419,6 +502,7 @@ function HomePage() {
         try {
           const errorData = await response.json();
           errorMessage = errorData.details || errorData.error || `HTTP ${response.status}`;
+          debugLog('API Error Details:', errorData);
         } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
@@ -426,10 +510,13 @@ function HomePage() {
       }
 
       const data = await response.json();
+      debugLog('Response received:', data);
       
       if (data.sessionId) {
+        setLastSessionId(data.sessionId);
         return data.sessionId;
       } else if (typeof data === 'string') {
+        setLastSessionId(data);
         return data; // Fallback for direct session ID response
       } else {
         throw new Error('Invalid response format: missing sessionId');
@@ -439,7 +526,6 @@ function HomePage() {
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - please check your connection and try again');
       }
-      console.error('Error fetching session ID:', error);
       setError(error.message);
       throw error;
     } finally {
@@ -452,6 +538,8 @@ function HomePage() {
       setError(null);
       setIsLoadingSession(true);
       
+      debugLog('Initializing embedded checkout...');
+      
       // Clear previous session
       setPaymentSession(null);
       if (typeof(Storage) !== "undefined") {
@@ -462,18 +550,21 @@ function HomePage() {
       setScriptKey(prev => prev + 1);
       
       // Small delay for cleanup and to ensure React state is fully updated
+      // This is critical: if user edited JSON and immediately clicked checkout,
+      // we need to ensure the jsonPayload state has fully updated before reading it
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Get new session
       const sessionId = await getSessionId();
       const trimmedSessionId = sessionId.trim();
       
+      debugLog('Session ID for embedded:', trimmedSessionId);
+      
       setPaymentSession(trimmedSessionId);
       setCurrentView('embedded');
       setCheckoutMode('embedded');
       
     } catch (error) {
-      console.error('Failed to open embedded checkout:', error);
       setError('Failed to initialize embedded checkout: ' + error.message);
       setCurrentView('cart');
     } finally {
@@ -483,6 +574,8 @@ function HomePage() {
   
   const openCheckoutPage = async () => {
     try {
+      debugLog('Initializing hosted checkout...');
+      
       setPaymentSession(null);
       setError(null);
       setIsCheckoutReady(false);
@@ -495,10 +588,14 @@ function HomePage() {
       setScriptKey(prev => prev + 1);
       
       // Small delay to ensure React state is fully updated
+      // This is critical: if user edited JSON and immediately clicked checkout,
+      // we need to ensure the jsonPayload state has fully updated before reading it
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const sessionId = await getSessionId();
       const trimmedSessionId = sessionId.trim();
+      
+      debugLog('Session ID for hosted:', trimmedSessionId);
       
       setPaymentSession(trimmedSessionId);
       setCheckoutMode('hosted');
@@ -506,7 +603,6 @@ function HomePage() {
       // Show payment page will happen in the useEffect
       
     } catch (error) {
-      console.error('Failed to open checkout page:', error);
       setError('Failed to initialize checkout: ' + error.message);
     } finally {
       setIsLoadingSession(false);
@@ -900,6 +996,19 @@ function HomePage() {
       display: 'flex',
       alignItems: 'flex-start',
       gap: '10px'
+    }
+  };
+
+  const getCurrentAmount = () => {
+    if (useAdvancedMode) {
+      try {
+        const parsed = JSON.parse(jsonPayload);
+        return parsed.order?.amount || '99.00';
+      } catch {
+        return '99.00';
+      }
+    } else {
+      return orderConfig.amount;
     }
   };
 
