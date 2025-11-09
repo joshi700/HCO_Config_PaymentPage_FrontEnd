@@ -12,7 +12,6 @@ function ReceiptPage() {
     transactionId: ''
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Parse URL parameters when component mounts
