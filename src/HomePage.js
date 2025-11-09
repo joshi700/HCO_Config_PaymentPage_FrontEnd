@@ -18,18 +18,9 @@ function HomePage() {
   // Application configuration - no environment variables
   const API_BASE_URL = 'https://hco-config-payment-page-backend.vercel.app'
   //'https://hco-configurable-embedded-backend.vercel.app';
-  const DEBUG_MODE = true;
-  const ENABLE_CONSOLE_LOGS = true;
   const ENABLE_ADVANCED_MODE = true;
   const ENABLE_CONFIG_SAVE = true;
   const API_TIMEOUT = 30000;
-  
-  // Helper function for conditional logging
-  const debugLog = useCallback((...args) => {
-    if (ENABLE_CONSOLE_LOGS && DEBUG_MODE) {
-      console.log('[DEBUG]', ...args);
-    }
-  }, [ENABLE_CONSOLE_LOGS, DEBUG_MODE]);
 
   // Configuration for API credentials with hardcoded defaults
   const [config, setConfig] = useState({
@@ -88,25 +79,11 @@ function HomePage() {
           ...prevConfig,
           ...parsedConfig
         }));
-        debugLog('Loaded API configuration from localStorage:', parsedConfig);
       } catch (e) {
         console.error('Error loading API configuration:', e);
       }
     }
   }, []);
-
-  // Monitor jsonPayload state changes for debugging
-  useEffect(() => {
-    if (useAdvancedMode && DEBUG_MODE) {
-      console.log('📝 jsonPayload state updated');
-      try {
-        const parsed = JSON.parse(jsonPayload);
-        console.log('💰 Current currency in state:', parsed.order?.currency);
-      } catch (e) {
-        // Ignore parse errors during typing
-      }
-    }
-  }, [jsonPayload, useAdvancedMode, DEBUG_MODE]);
 
   // Connection check on component mount
   useEffect(() => {
@@ -123,15 +100,12 @@ function HomePage() {
       });
       
       if (response.ok) {
-        const data = await response.json();
         setConnectionStatus('connected');
-        debugLog('Backend connection successful:', data);
       } else {
         setConnectionStatus('error');
       }
     } catch (error) {
       setConnectionStatus('error');
-      debugLog('Backend connection failed:', error);
     }
   };
 
@@ -148,7 +122,6 @@ function HomePage() {
       script.src = `${config.apiBaseUrl}/static/checkout/checkout.min.js`;
       script.async = true;
       script.onload = () => {
-        debugLog('Checkout script loaded successfully');
         setIsCheckoutReady(true);
       };
       script.onerror = () => {
@@ -172,8 +145,6 @@ function HomePage() {
   // Configure checkout when script is loaded and session is available
   useEffect(() => {
     if (isCheckoutReady && window.Checkout && paymentSession) {
-      debugLog('Configuring checkout with session:', paymentSession);
-      
       try {
         setTimeout(() => {
           const configObj = {
@@ -182,17 +153,13 @@ function HomePage() {
             }
           };
           
-          debugLog('Configuration object:', configObj);
           window.Checkout.configure(configObj);
-          debugLog('Configuration completed successfully');
           
           // Only show payment page for hosted mode
           if (checkoutMode === 'hosted') {
             setTimeout(() => {
               try {
-                debugLog('Showing hosted payment page...');
                 window.Checkout.showPaymentPage();
-                debugLog('Hosted payment page displayed');
               } catch (showError) {
                 console.error('Error showing payment page:', showError);
                 setError('Failed to display payment page: ' + showError.message);
@@ -208,13 +175,11 @@ function HomePage() {
         setError('Failed to configure payment system: ' + configError.message);
       }
     }
-  }, [isCheckoutReady, paymentSession, checkoutMode, debugLog]);
+  }, [isCheckoutReady, paymentSession, checkoutMode]);
 
   // Display embedded form when view changes to embedded
   useEffect(() => {
     if (currentView === 'embedded' && isCheckoutReady && window.Checkout && paymentSession) {
-      debugLog('Displaying embedded checkout form');
-      
       setTimeout(() => {
         try {
           const embeddedElement = document.getElementById('hco-embedded');
@@ -222,9 +187,7 @@ function HomePage() {
             throw new Error('Embedded container element not found');
           }
           
-          debugLog('Calling showEmbeddedPage...');
           window.Checkout.showEmbeddedPage('#hco-embedded');
-          debugLog('Embedded form displayed successfully');
           
         } catch (showError) {
           console.error('Error showing embedded page:', showError);
@@ -234,7 +197,7 @@ function HomePage() {
         }
       }, 600); // Wait for configuration to complete
     }
-  }, [currentView, isCheckoutReady, paymentSession, debugLog]);
+  }, [currentView, isCheckoutReady, paymentSession]);
   
   // Save configuration to localStorage if enabled
   const saveConfigToStorage = useCallback((newConfig, newOrderConfig) => {
@@ -243,14 +206,13 @@ function HomePage() {
         localStorage.setItem('mastercardConfig', JSON.stringify(newConfig));
         localStorage.setItem('mastercardOrderConfig', JSON.stringify(newOrderConfig));
         localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
-        debugLog('Configuration saved to localStorage');
         setSuccess('Configuration saved successfully!');
         setTimeout(() => setSuccess(null), 3000);
       } catch (e) {
-        debugLog('Failed to save configuration:', e);
+        // Silent failure for localStorage
       }
     }
-  }, [ENABLE_CONFIG_SAVE, debugLog]);
+  }, [ENABLE_CONFIG_SAVE]);
 
   // Load configuration from localStorage if available
   useEffect(() => {
@@ -266,23 +228,20 @@ function HomePage() {
         if (savedConfig && isConfigFresh) {
           const parsed = JSON.parse(savedConfig);
           setConfig(prevConfig => ({ ...prevConfig, ...parsed }));
-          debugLog('Loaded configuration from localStorage');
         }
         
         if (savedOrderConfig && isConfigFresh) {
           const parsed = JSON.parse(savedOrderConfig);
           setOrderConfig(prevConfig => ({ ...prevConfig, ...parsed }));
-          debugLog('Loaded order configuration from localStorage');
         }
       } catch (e) {
-        debugLog('Failed to load configuration from localStorage:', e);
         // Clear corrupted data
         localStorage.removeItem('mastercardConfig');
         localStorage.removeItem('mastercardOrderConfig');
         localStorage.removeItem('mastercardConfigTimestamp');
       }
     }
-  }, [ENABLE_CONFIG_SAVE, debugLog]);
+  }, [ENABLE_CONFIG_SAVE]);
 
   // Handle config changes with automatic username generation
   const handleConfigChange = useCallback((field, value) => {
@@ -380,8 +339,7 @@ function HomePage() {
     setError(null);
     setSuccess('Reset to default configuration!');
     setTimeout(() => setSuccess(null), 3000);
-    debugLog('Reset to hardcoded defaults');
-  }, [ENABLE_CONFIG_SAVE, debugLog]);
+  }, [ENABLE_CONFIG_SAVE]);
 
   // Test API connection
   const testApiConnection = async () => {
@@ -402,7 +360,6 @@ function HomePage() {
       
       if (response.ok) {
         setSuccess('API connection test successful!');
-        debugLog('API test response:', data);
       } else {
         throw new Error(data.error || 'API test failed');
       }
@@ -422,19 +379,10 @@ function HomePage() {
 
   // Validate and parse JSON payload
   const getValidatedPayload = useCallback(() => {
-    console.log('🔍 getValidatedPayload called - Mode:', useAdvancedMode ? 'ADVANCED' : 'SIMPLE');
-    
     if (useAdvancedMode) {
-      console.log('📝 Using Advanced JSON Mode');
-      console.log('📝 Current jsonPayload preview:', jsonPayload.substring(0, 200) + '...');
-      
       try {
         const updatedJson = updateJsonWithOrderId(jsonPayload);
         const parsed = JSON.parse(updatedJson);
-        
-        console.log('✅ JSON parsed successfully');
-        console.log('💰 Currency in parsed JSON:', parsed.order?.currency);
-        console.log('💵 Amount in parsed JSON:', parsed.order?.amount);
         
         // Ensure required fields are present
         if (!parsed.apiOperation) {
@@ -447,17 +395,11 @@ function HomePage() {
           throw new Error('order.currency is required');
         }
         
-        console.log('✅ Validation passed - returning payload');
         return parsed;
       } catch (e) {
-        console.error('❌ JSON Validation Error:', e.message);
         throw new Error(`JSON Validation Error: ${e.message}`);
       }
     } else {
-      console.log('📋 Using Simple Form Mode');
-      console.log('💰 Currency from orderConfig:', orderConfig.currency);
-      console.log('💵 Amount from orderConfig:', orderConfig.amount);
-      
       // Use simple form mode
       const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const payload = {
@@ -479,7 +421,6 @@ function HomePage() {
         }
       };
       
-      console.log('✅ Simple mode payload created');
       return payload;
     }
   }, [useAdvancedMode, jsonPayload, orderConfig]);
@@ -490,11 +431,6 @@ function HomePage() {
     setError(null);
     
     try {
-      console.log('');
-      console.log('='.repeat(80));
-      console.log('🚀 CREATING PAYMENT SESSION');
-      console.log('='.repeat(80));
-      
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
@@ -510,19 +446,6 @@ function HomePage() {
         ...config, // Include auth config
         ...validatedPayload // Spread the payload directly
       };
-
-      console.log('');
-      console.log('📤 FINAL REQUEST BODY:');
-      console.log(JSON.stringify(requestBody, null, 2));
-      console.log('');
-      console.log('💰 CURRENCY IN REQUEST:', requestBody.order?.currency || 'NOT FOUND');
-      console.log('💵 AMOUNT IN REQUEST:', requestBody.order?.amount || 'NOT FOUND');
-      console.log('🆔 ORDER ID IN REQUEST:', requestBody.order?.id || 'NOT FOUND');
-      console.log('='.repeat(80));
-      console.log('');
-
-      debugLog('Sending request to:', API_BASE_URL);
-      debugLog('Request body:', requestBody);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
@@ -543,7 +466,6 @@ function HomePage() {
         try {
           const errorData = await response.json();
           errorMessage = errorData.details || errorData.error || `HTTP ${response.status}`;
-          debugLog('API Error Details:', errorData);
         } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
@@ -551,12 +473,6 @@ function HomePage() {
       }
 
       const data = await response.json();
-      console.log('');
-      console.log('✅ RESPONSE RECEIVED FROM BACKEND');
-      console.log('Response data:', data);
-      console.log('='.repeat(80));
-      console.log('');
-      debugLog('Response received:', data);
       
       if (data.sessionId) {
         setLastSessionId(data.sessionId);
@@ -585,8 +501,6 @@ function HomePage() {
       setError(null);
       setIsLoadingSession(true);
       
-      debugLog('Initializing embedded checkout...');
-      
       // Clear previous session
       setPaymentSession(null);
       if (typeof(Storage) !== "undefined") {
@@ -597,15 +511,11 @@ function HomePage() {
       setScriptKey(prev => prev + 1);
       
       // Small delay for cleanup and to ensure React state is fully updated
-      // This is critical: if user edited JSON and immediately clicked checkout,
-      // we need to ensure the jsonPayload state has fully updated before reading it
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Get new session
       const sessionId = await getSessionId();
       const trimmedSessionId = sessionId.trim();
-      
-      debugLog('Session ID for embedded:', trimmedSessionId);
       
       setPaymentSession(trimmedSessionId);
       setCurrentView('embedded');
@@ -622,8 +532,6 @@ function HomePage() {
   
   const openCheckoutPage = async () => {
     try {
-      debugLog('Initializing hosted checkout...');
-      
       setPaymentSession(null);
       setError(null);
       setIsCheckoutReady(false);
@@ -636,14 +544,10 @@ function HomePage() {
       setScriptKey(prev => prev + 1);
       
       // Small delay to ensure React state is fully updated
-      // This is critical: if user edited JSON and immediately clicked checkout,
-      // we need to ensure the jsonPayload state has fully updated before reading it
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const sessionId = await getSessionId();
       const trimmedSessionId = sessionId.trim();
-      
-      debugLog('Session ID for hosted:', trimmedSessionId);
       
       setPaymentSession(trimmedSessionId);
       setCheckoutMode('hosted');
