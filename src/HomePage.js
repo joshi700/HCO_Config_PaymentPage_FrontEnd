@@ -168,7 +168,7 @@ function HomePage() {
 
     const cleanup = loadCheckoutScript();
     return cleanup;
-  }, [scriptKey, config.apiBaseUrl]);
+  }, [scriptKey, config.apiBaseUrl, debugLog]);
 
   // Configure checkout when script is loaded and session is available
   useEffect(() => {
