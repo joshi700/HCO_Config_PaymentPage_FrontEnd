@@ -27,7 +27,7 @@ function HomePage() {
   // Helper function for conditional logging
   const debugLog = useCallback((...args) => {
     if (ENABLE_CONSOLE_LOGS && DEBUG_MODE) {
-      // Logging disabled for production
+      console.log('[DEBUG]', ...args);
     }
   }, [ENABLE_CONSOLE_LOGS, DEBUG_MODE]);
 
@@ -90,7 +90,7 @@ function HomePage() {
         }));
         debugLog('Loaded API configuration from localStorage:', parsedConfig);
       } catch (e) {
-        // Error loading API configuration
+        console.error('Error loading API configuration:', e);
       }
     }
   }, []);
@@ -98,7 +98,13 @@ function HomePage() {
   // Monitor jsonPayload state changes for debugging
   useEffect(() => {
     if (useAdvancedMode && DEBUG_MODE) {
-      // Debug mode monitoring disabled
+      console.log('📝 jsonPayload state updated');
+      try {
+        const parsed = JSON.parse(jsonPayload);
+        console.log('💰 Current currency in state:', parsed.order?.currency);
+      } catch (e) {
+        // Ignore parse errors during typing
+      }
     }
   }, [jsonPayload, useAdvancedMode, DEBUG_MODE]);
 
@@ -146,6 +152,7 @@ function HomePage() {
         setIsCheckoutReady(true);
       };
       script.onerror = () => {
+        console.error('Failed to load checkout script');
         setError('Failed to load payment system. Please check your API Base URL and try again.');
         setIsCheckoutReady(false);
       };
@@ -187,6 +194,7 @@ function HomePage() {
                 window.Checkout.showPaymentPage();
                 debugLog('Hosted payment page displayed');
               } catch (showError) {
+                console.error('Error showing payment page:', showError);
                 setError('Failed to display payment page: ' + showError.message);
               }
             }, 500);
@@ -196,6 +204,7 @@ function HomePage() {
         }, 100);
         
       } catch (configError) {
+        console.error('Error configuring checkout:', configError);
         setError('Failed to configure payment system: ' + configError.message);
       }
     }
@@ -218,6 +227,7 @@ function HomePage() {
           debugLog('Embedded form displayed successfully');
           
         } catch (showError) {
+          console.error('Error showing embedded page:', showError);
           setError('Failed to display embedded payment form: ' + showError.message);
           setCurrentView('cart');
           setPaymentSession(null);
@@ -412,10 +422,19 @@ function HomePage() {
 
   // Validate and parse JSON payload
   const getValidatedPayload = useCallback(() => {
+    console.log('🔍 getValidatedPayload called - Mode:', useAdvancedMode ? 'ADVANCED' : 'SIMPLE');
+    
     if (useAdvancedMode) {
+      console.log('📝 Using Advanced JSON Mode');
+      console.log('📝 Current jsonPayload preview:', jsonPayload.substring(0, 200) + '...');
+      
       try {
         const updatedJson = updateJsonWithOrderId(jsonPayload);
         const parsed = JSON.parse(updatedJson);
+        
+        console.log('✅ JSON parsed successfully');
+        console.log('💰 Currency in parsed JSON:', parsed.order?.currency);
+        console.log('💵 Amount in parsed JSON:', parsed.order?.amount);
         
         // Ensure required fields are present
         if (!parsed.apiOperation) {
@@ -428,11 +447,17 @@ function HomePage() {
           throw new Error('order.currency is required');
         }
         
+        console.log('✅ Validation passed - returning payload');
         return parsed;
       } catch (e) {
+        console.error('❌ JSON Validation Error:', e.message);
         throw new Error(`JSON Validation Error: ${e.message}`);
       }
     } else {
+      console.log('📋 Using Simple Form Mode');
+      console.log('💰 Currency from orderConfig:', orderConfig.currency);
+      console.log('💵 Amount from orderConfig:', orderConfig.amount);
+      
       // Use simple form mode
       const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const payload = {
@@ -454,6 +479,7 @@ function HomePage() {
         }
       };
       
+      console.log('✅ Simple mode payload created');
       return payload;
     }
   }, [useAdvancedMode, jsonPayload, orderConfig]);
@@ -464,6 +490,11 @@ function HomePage() {
     setError(null);
     
     try {
+      console.log('');
+      console.log('='.repeat(80));
+      console.log('🚀 CREATING PAYMENT SESSION');
+      console.log('='.repeat(80));
+      
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
@@ -479,6 +510,16 @@ function HomePage() {
         ...config, // Include auth config
         ...validatedPayload // Spread the payload directly
       };
+
+      console.log('');
+      console.log('📤 FINAL REQUEST BODY:');
+      console.log(JSON.stringify(requestBody, null, 2));
+      console.log('');
+      console.log('💰 CURRENCY IN REQUEST:', requestBody.order?.currency || 'NOT FOUND');
+      console.log('💵 AMOUNT IN REQUEST:', requestBody.order?.amount || 'NOT FOUND');
+      console.log('🆔 ORDER ID IN REQUEST:', requestBody.order?.id || 'NOT FOUND');
+      console.log('='.repeat(80));
+      console.log('');
 
       debugLog('Sending request to:', API_BASE_URL);
       debugLog('Request body:', requestBody);
@@ -510,6 +551,11 @@ function HomePage() {
       }
 
       const data = await response.json();
+      console.log('');
+      console.log('✅ RESPONSE RECEIVED FROM BACKEND');
+      console.log('Response data:', data);
+      console.log('='.repeat(80));
+      console.log('');
       debugLog('Response received:', data);
       
       if (data.sessionId) {
@@ -526,6 +572,7 @@ function HomePage() {
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - please check your connection and try again');
       }
+      console.error('Error fetching session ID:', error);
       setError(error.message);
       throw error;
     } finally {
@@ -565,6 +612,7 @@ function HomePage() {
       setCheckoutMode('embedded');
       
     } catch (error) {
+      console.error('Failed to open embedded checkout:', error);
       setError('Failed to initialize embedded checkout: ' + error.message);
       setCurrentView('cart');
     } finally {
@@ -603,6 +651,7 @@ function HomePage() {
       // Show payment page will happen in the useEffect
       
     } catch (error) {
+      console.error('Failed to open checkout page:', error);
       setError('Failed to initialize checkout: ' + error.message);
     } finally {
       setIsLoadingSession(false);
