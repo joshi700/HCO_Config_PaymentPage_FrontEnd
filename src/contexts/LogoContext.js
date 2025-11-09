@@ -12,7 +12,7 @@ export const useLogoContext = () => {
 
 export const LogoProvider = ({ children }) => {
   const [logoUrl, setLogoUrl] = useState('');
-  const [companyName, setCompanyName] = useState('Payment System');
+  const [companyName, setCompanyName] = useState('ABC Company');
 
   // Load logo from localStorage on mount
   useEffect(() => {
