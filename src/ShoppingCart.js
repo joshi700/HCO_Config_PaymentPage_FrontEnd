@@ -12,16 +12,46 @@ function ShoppingCart({
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
 
-  const sampleProduct = {
-    id: 1,
-    name: 'Premium Headphones',
-    price: 99.99,
-    description: 'High-quality wireless headphones with noise cancellation',
-    image: '🎧'
-  };
+  const sampleProducts = [
+    {
+      id: 1,
+      name: 'Premium Headphones',
+      price: 99.99,
+      description: 'High-quality wireless headphones with noise cancellation',
+      image: '🎧'
+    },
+    {
+      id: 2,
+      name: 'Premium Watch',
+      price: 99.00,
+      description: 'Elegant smartwatch with fitness tracking and notifications',
+      image: '⌚'
+    },
+    {
+      id: 3,
+      name: 'Wireless Keyboard',
+      price: 79.99,
+      description: 'Mechanical keyboard with RGB backlighting',
+      image: '⌨️'
+    },
+    {
+      id: 4,
+      name: 'Gaming Mouse',
+      price: 59.99,
+      description: 'High-precision gaming mouse with customizable buttons',
+      image: '🖱️'
+    },
+    {
+      id: 5,
+      name: 'USB-C Hub',
+      price: 49.99,
+      description: 'Multi-port USB-C hub with HDMI and card reader',
+      image: '🔌'
+    }
+  ];
 
   const addSampleItems = () => {
-    setCartItems([sampleProduct]);
+    setCartItems(sampleProducts);
   };
 
   const removeItem = (id) => {
