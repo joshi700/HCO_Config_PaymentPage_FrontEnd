@@ -86,11 +86,9 @@ function HomePage() {
           ...prevConfig,
           ...parsedConfig
         }));
-        // Log without exposing password
+        // Log without exposing password - remove it completely
         const safeConfig = { ...parsedConfig };
-        if (safeConfig.password) {
-          safeConfig.password = '***HIDDEN***';
-        }
+        delete safeConfig.password;
         debugLog('Loaded API configuration from localStorage:', safeConfig);
       } catch (e) {
         console.error('Error loading API configuration:', e);
@@ -494,11 +492,10 @@ function HomePage() {
         ...validatedPayload // Spread the payload directly
       };
 
-      // Create sanitized version for logging (without password)
-      const sanitizedRequestBody = { ...requestBody };
-      if (sanitizedRequestBody.password) {
-        sanitizedRequestBody.password = '***HIDDEN***';
-      }
+      // Create sanitized version for logging (without password) - deep copy to avoid reference issues
+      const sanitizedRequestBody = JSON.parse(JSON.stringify(requestBody));
+      // Remove password field completely instead of masking it
+      delete sanitizedRequestBody.password;
 
       console.log('');
       console.log('📤 FINAL REQUEST BODY:');
@@ -511,7 +508,7 @@ function HomePage() {
       console.log('');
 
       debugLog('Sending request to:', API_BASE_URL);
-      debugLog('Request body:', sanitizedRequestBody);
+      debugLog('Request body (password removed for security):', sanitizedRequestBody);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
