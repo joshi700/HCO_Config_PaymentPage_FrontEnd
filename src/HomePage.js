@@ -13,7 +13,6 @@ function HomePage() {
   const [success, setSuccess] = useState(null);
   const [scriptKey, setScriptKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('checking');
-  const [lastSessionId, setLastSessionId] = useState(null);
   
   // Application configuration - no environment variables
   const API_BASE_URL = 'https://hco-config-payment-page-backend.vercel.app'
@@ -42,7 +41,6 @@ function HomePage() {
   });
 
   const [useAdvancedMode, setUseAdvancedMode] = useState(true); // Changed to true - start in Advanced mode by default
-  const [showApiTest, setShowApiTest] = useState(false);
 
   // JSON payload for advanced mode with hardcoded defaults
   const [jsonPayload, setJsonPayload] = useState(`{
@@ -199,21 +197,6 @@ function HomePage() {
     }
   }, [currentView, isCheckoutReady, paymentSession]);
   
-  // Save configuration to localStorage if enabled
-  const saveConfigToStorage = useCallback((newConfig, newOrderConfig) => {
-    if (ENABLE_CONFIG_SAVE) {
-      try {
-        localStorage.setItem('mastercardConfig', JSON.stringify(newConfig));
-        localStorage.setItem('mastercardOrderConfig', JSON.stringify(newOrderConfig));
-        localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
-        setSuccess('Configuration saved successfully!');
-        setTimeout(() => setSuccess(null), 3000);
-      } catch (e) {
-        // Silent failure for localStorage
-      }
-    }
-  }, [ENABLE_CONFIG_SAVE]);
-
   // Load configuration from localStorage if available
   useEffect(() => {
     if (ENABLE_CONFIG_SAVE) {
@@ -341,36 +324,6 @@ function HomePage() {
     setTimeout(() => setSuccess(null), 3000);
   }, [ENABLE_CONFIG_SAVE]);
 
-  // Test API connection
-  const testApiConnection = async () => {
-    try {
-      setIsLoadingSession(true);
-      setError(null);
-      
-      const response = await fetch(`${API_BASE_URL}/test-config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(config),
-        timeout: API_TIMEOUT
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setSuccess('API connection test successful!');
-      } else {
-        throw new Error(data.error || 'API test failed');
-      }
-    } catch (error) {
-      setError(`API Test Failed: ${error.message}`);
-    } finally {
-      setIsLoadingSession(false);
-      setTimeout(() => setSuccess(null), 5000);
-    }
-  };
-
   // Generate order ID and update JSON
   const updateJsonWithOrderId = (json) => {
     const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -475,10 +428,8 @@ function HomePage() {
       const data = await response.json();
       
       if (data.sessionId) {
-        setLastSessionId(data.sessionId);
         return data.sessionId;
       } else if (typeof data === 'string') {
-        setLastSessionId(data);
         return data; // Fallback for direct session ID response
       } else {
         throw new Error('Invalid response format: missing sessionId');
@@ -949,19 +900,6 @@ function HomePage() {
       display: 'flex',
       alignItems: 'flex-start',
       gap: '10px'
-    }
-  };
-
-  const getCurrentAmount = () => {
-    if (useAdvancedMode) {
-      try {
-        const parsed = JSON.parse(jsonPayload);
-        return parsed.order?.amount || '99.00';
-      } catch {
-        return '99.00';
-      }
-    } else {
-      return orderConfig.amount;
     }
   };
 
