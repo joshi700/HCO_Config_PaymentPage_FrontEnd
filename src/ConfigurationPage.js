@@ -175,8 +175,40 @@ function ConfigurationPage() {
   };
 
   const handleSaveApiConfig = () => {
-    localStorage.setItem('apiConfiguration', JSON.stringify(apiConfig));
-    showSaveMessage('API configuration saved successfully!');
+    console.log('🔍 handleSaveApiConfig called');
+    console.log('📦 Current apiConfig:', apiConfig);
+    
+    // Create a safe version for logging (without password)
+    const safeConfig = { ...apiConfig };
+    const passwordLength = apiConfig.password ? apiConfig.password.length : 0;
+    delete safeConfig.password;
+    console.log('📦 apiConfig (safe):', safeConfig, `password: ${passwordLength} chars`);
+    
+    try {
+      const jsonString = JSON.stringify(apiConfig);
+      console.log('📝 JSON string length:', jsonString.length);
+      
+      localStorage.setItem('apiConfiguration', jsonString);
+      console.log('✅ Saved to localStorage');
+      
+      // Verify it was saved
+      const verified = localStorage.getItem('apiConfiguration');
+      if (verified) {
+        console.log('✅ Verified: Configuration exists in localStorage');
+        const parsed = JSON.parse(verified);
+        console.log('✅ Verified: Can parse back:', {
+          ...parsed,
+          password: parsed.password ? `${parsed.password.length} chars` : 'NOT SET'
+        });
+      } else {
+        console.error('❌ Verification failed: Configuration not found after save');
+      }
+      
+      showSaveMessage('API configuration saved successfully!');
+    } catch (error) {
+      console.error('❌ Error saving configuration:', error);
+      showSaveMessage('Error saving configuration: ' + error.message);
+    }
   };
   
   const handleJsonChange = (value) => {
@@ -702,9 +734,33 @@ function ConfigurationPage() {
             )}
 
             {selectedProfile === 'custom' && (
-              <button style={styles.uploadButton} onClick={handleSaveApiConfig}>
-                💾 Save Custom Configuration
-              </button>
+              <>
+                <button style={styles.uploadButton} onClick={handleSaveApiConfig}>
+                  💾 Save Custom Configuration
+                </button>
+                <button 
+                  style={{...styles.uploadButton, background: '#2196F3', marginLeft: '10px'}} 
+                  onClick={() => {
+                    const config = localStorage.getItem('apiConfiguration');
+                    if (!config) {
+                      alert('❌ No configuration found in localStorage!');
+                      console.log('❌ localStorage is empty');
+                      return;
+                    }
+                    try {
+                      const parsed = JSON.parse(config);
+                      const passwordInfo = parsed.password ? `${parsed.password.length} characters` : 'NOT SET';
+                      alert(`✅ Configuration found!\n\nMerchant ID: ${parsed.merchantId}\nUsername: ${parsed.username}\nPassword: ${passwordInfo}\nBase URL: ${parsed.apiBaseUrl}\nVersion: ${parsed.apiVersion}`);
+                      console.log('✅ localStorage config:', { ...parsed, password: passwordInfo });
+                    } catch (e) {
+                      alert('❌ Error parsing configuration: ' + e.message);
+                      console.error('❌ Parse error:', e);
+                    }
+                  }}
+                >
+                  🔍 Test localStorage
+                </button>
+              </>
             )}
 
             <div style={styles.infoBox}>
