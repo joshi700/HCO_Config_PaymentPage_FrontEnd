@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useLogoContext } from './contexts/LogoContext';
 import Logo from './components/Logo';
 import ImageUtils from './utils/ImageUtils';
-import merchantProfiles from './config/merchantProfiles';
 
 function ConfigurationPage() {
   const navigate = useNavigate();
@@ -16,6 +15,7 @@ function ConfigurationPage() {
   const [imageInfo, setImageInfo] = useState(null);
   const [validationMessage, setValidationMessage] = useState('');
   
+  // JSON Payload state for Advanced Mode
   const [jsonPayload, setJsonPayload] = useState(`{
   "apiOperation": "INITIATE_CHECKOUT",
   "checkoutMode": "WEBSITE",
@@ -28,7 +28,7 @@ function ConfigurationPage() {
       "name": "JK Enterprises LLC",
       "url": "https://mastercard.com/"
     },
-    "returnUrl": "\${window.location.origin}/ReceiptPage"
+    "returnUrl": "${window.location.origin}/ReceiptPage"
   },
   "order": {
     "currency": "USD",
@@ -39,8 +39,7 @@ function ConfigurationPage() {
 }`);
   const [jsonError, setJsonError] = useState(null);
 
-  const [selectedProfile, setSelectedProfile] = useState('default');
-  const [showCredentials, setShowCredentials] = useState(false);
+  // API Configuration
   const [apiConfig, setApiConfig] = useState({
     merchantId: '',
     username: '',
@@ -50,28 +49,20 @@ function ConfigurationPage() {
   });
 
   useEffect(() => {
-    const savedProfile = localStorage.getItem('selectedMerchantProfile') || 'default';
-    setSelectedProfile(savedProfile);
-    
     const savedConfig = localStorage.getItem('apiConfiguration');
     if (savedConfig) {
       try {
-        const parsed = JSON.parse(savedConfig);
-        setApiConfig(parsed);
-        if (!merchantProfiles[savedProfile] || savedProfile === 'custom') {
-          setShowCredentials(true);
-        }
+        setApiConfig(JSON.parse(savedConfig));
       } catch (e) {
         console.error('Error loading saved configuration:', e);
-        setApiConfig(merchantProfiles[savedProfile].config);
       }
-    } else {
-      setApiConfig(merchantProfiles[savedProfile].config);
     }
     
+    // Load saved JSON payload
     const savedJsonPayload = localStorage.getItem('advancedJsonPayload');
     if (savedJsonPayload) {
       setJsonPayload(savedJsonPayload);
+      // Validate loaded JSON
       try {
         JSON.parse(savedJsonPayload);
       } catch (e) {
@@ -157,58 +148,9 @@ function ConfigurationPage() {
     }));
   };
 
-  const handleProfileChange = (profileId) => {
-    setSelectedProfile(profileId);
-    localStorage.setItem('selectedMerchantProfile', profileId);
-    
-    if (profileId === 'custom') {
-      setShowCredentials(true);
-    } else {
-      setShowCredentials(false);
-      const profile = merchantProfiles[profileId];
-      if (profile) {
-        setApiConfig(profile.config);
-        localStorage.setItem('apiConfiguration', JSON.stringify(profile.config));
-        showSaveMessage(`Loaded ${profile.name} configuration`);
-      }
-    }
-  };
-
   const handleSaveApiConfig = () => {
-    console.log('🔍 handleSaveApiConfig called');
-    console.log('📦 Current apiConfig:', apiConfig);
-    
-    // Create a safe version for logging (without password)
-    const safeConfig = { ...apiConfig };
-    const passwordLength = apiConfig.password ? apiConfig.password.length : 0;
-    delete safeConfig.password;
-    console.log('📦 apiConfig (safe):', safeConfig, `password: ${passwordLength} chars`);
-    
-    try {
-      const jsonString = JSON.stringify(apiConfig);
-      console.log('📝 JSON string length:', jsonString.length);
-      
-      localStorage.setItem('apiConfiguration', jsonString);
-      console.log('✅ Saved to localStorage');
-      
-      // Verify it was saved
-      const verified = localStorage.getItem('apiConfiguration');
-      if (verified) {
-        console.log('✅ Verified: Configuration exists in localStorage');
-        const parsed = JSON.parse(verified);
-        console.log('✅ Verified: Can parse back:', {
-          ...parsed,
-          password: parsed.password ? `${parsed.password.length} chars` : 'NOT SET'
-        });
-      } else {
-        console.error('❌ Verification failed: Configuration not found after save');
-      }
-      
-      showSaveMessage('API configuration saved successfully!');
-    } catch (error) {
-      console.error('❌ Error saving configuration:', error);
-      showSaveMessage('Error saving configuration: ' + error.message);
-    }
+    localStorage.setItem('apiConfiguration', JSON.stringify(apiConfig));
+    showSaveMessage('API configuration saved successfully!');
   };
   
   const handleJsonChange = (value) => {
@@ -304,14 +246,15 @@ function ConfigurationPage() {
     card: {
       backgroundColor: 'white',
       borderRadius: '12px',
-      padding: '32px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+      padding: '30px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      marginBottom: '20px',
     },
     sectionTitle: {
-      fontSize: '24px',
+      fontSize: '20px',
       fontWeight: '700',
       color: '#1a202c',
-      marginBottom: '24px',
+      marginBottom: '20px',
     },
     formGroup: {
       marginBottom: '24px',
@@ -320,35 +263,30 @@ function ConfigurationPage() {
       display: 'block',
       fontSize: '14px',
       fontWeight: '600',
-      color: '#2d3748',
+      color: '#4a5568',
       marginBottom: '8px',
     },
     input: {
       width: '100%',
       padding: '12px 16px',
-      fontSize: '15px',
+      fontSize: '16px',
       border: '2px solid #e2e8f0',
       borderRadius: '8px',
-      transition: 'all 0.3s ease',
-      backgroundColor: 'white',
+      transition: 'border-color 0.3s ease',
       boxSizing: 'border-box',
     },
-    textarea: {
-      width: '100%',
-      minHeight: '400px',
-      padding: '16px',
-      fontSize: '14px',
-      fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-      border: '2px solid #e2e8f0',
+    logoPreview: {
+      marginTop: '20px',
+      padding: '30px',
+      backgroundColor: '#f7fafc',
       borderRadius: '8px',
-      transition: 'all 0.3s ease',
-      backgroundColor: 'white',
-      boxSizing: 'border-box',
-      resize: 'vertical',
+      border: '2px dashed #cbd5e0',
+      textAlign: 'center',
     },
-    textareaError: {
-      border: '2px solid #fc8181',
-      backgroundColor: '#fff5f5',
+    logoImage: {
+      maxWidth: '250px',
+      maxHeight: '100px',
+      objectFit: 'contain',
     },
     uploadButton: {
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -360,9 +298,10 @@ function ConfigurationPage() {
       fontSize: '16px',
       fontWeight: '600',
       transition: 'all 0.3s ease',
+      marginRight: '10px',
     },
     clearButton: {
-      backgroundColor: '#e53e3e',
+      background: '#e53e3e',
       color: 'white',
       border: 'none',
       padding: '12px 24px',
@@ -371,90 +310,84 @@ function ConfigurationPage() {
       fontSize: '16px',
       fontWeight: '600',
       transition: 'all 0.3s ease',
-      marginLeft: '12px',
     },
-    buttonGroup: {
-      display: 'flex',
-      gap: '12px',
-      marginBottom: '24px',
-    },
-    logoPreview: {
-      marginTop: '24px',
-      padding: '24px',
-      backgroundColor: '#f7fafc',
+    saveMessage: {
+      padding: '16px',
+      backgroundColor: '#c6f6d5',
+      color: '#22543d',
       borderRadius: '8px',
-      border: '2px dashed #cbd5e0',
-    },
-    logoImage: {
-      maxWidth: '300px',
-      maxHeight: '100px',
-      objectFit: 'contain',
-      border: '1px solid #e2e8f0',
-      borderRadius: '4px',
-      padding: '8px',
-      backgroundColor: 'white',
+      marginBottom: '20px',
+      textAlign: 'center',
+      fontWeight: '600',
     },
     infoBox: {
       backgroundColor: '#ebf8ff',
       border: '1px solid #90cdf4',
       borderRadius: '8px',
       padding: '16px',
-      marginTop: '24px',
+      marginTop: '20px',
     },
     infoText: {
       fontSize: '14px',
       color: '#2c5282',
       margin: 0,
     },
-    successMessage: {
-      position: 'fixed',
-      top: '20px',
-      right: '20px',
-      backgroundColor: '#48bb78',
-      color: 'white',
-      padding: '16px 24px',
-      borderRadius: '8px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      zIndex: 1000,
-      animation: 'slideIn 0.3s ease',
+    buttonGroup: {
+      display: 'flex',
+      gap: '12px',
+      marginTop: '20px',
     },
     hiddenInput: {
       display: 'none',
     },
+    textarea: {
+      width: '100%',
+      padding: '16px',
+      border: '2px solid #e5e7eb',
+      borderRadius: '8px',
+      fontSize: '13px',
+      minHeight: '420px',
+      resize: 'vertical',
+      fontFamily: '"Fira Code", "JetBrains Mono", Monaco, Menlo, "Ubuntu Mono", monospace',
+      boxSizing: 'border-box',
+      lineHeight: '1.5',
+      backgroundColor: '#f8fafc',
+    },
+    textareaError: {
+      borderColor: '#ef4444',
+    },
     jsonError: {
       marginTop: '12px',
       padding: '12px',
-      backgroundColor: '#fff5f5',
-      border: '1px solid #fc8181',
+      backgroundColor: '#fee2e2',
+      border: '1px solid #ef4444',
       borderRadius: '6px',
-      color: '#c53030',
-      fontSize: '13px',
+      color: '#991b1b',
+      fontSize: '14px',
     },
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
+      <header style={styles.header}>
         <Logo size="medium" />
         <button 
           style={styles.backButton}
           onClick={() => navigate('/')}
-          onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-          onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
         >
           ← Back to Home
         </button>
-      </div>
-
-      {saveMessage && (
-        <div style={styles.successMessage}>
-          ✓ {saveMessage}
-        </div>
-      )}
+      </header>
 
       <div style={styles.content}>
         <h1 style={styles.title}>Configuration Settings</h1>
         <p style={styles.subtitle}>Manage your payment gateway settings and branding</p>
+
+        {saveMessage && (
+          <div style={styles.saveMessage}>
+            ✓ {saveMessage}
+          </div>
+        )}
 
         <div style={styles.tabContainer}>
           <button
@@ -593,180 +526,68 @@ function ConfigurationPage() {
           <div style={styles.card}>
             <h2 style={styles.sectionTitle}>Payment Gateway Configuration</h2>
             
-            <div style={styles.infoBox}>
-              <p style={styles.infoText}>
-                <strong>🎯 Quick Setup:</strong> Select a pre-configured merchant profile below for instant demo setup, 
-                or choose "Custom Configuration" to enter your own credentials.
-              </p>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Merchant ID</label>
+              <input
+                type="text"
+                style={styles.input}
+                value={apiConfig.merchantId}
+                onChange={(e) => handleApiConfigChange('merchantId', e.target.value)}
+                placeholder="Enter Merchant ID"
+              />
             </div>
 
             <div style={styles.formGroup}>
-              <label style={styles.label}>Merchant Profile</label>
-              <select
+              <label style={styles.label}>API Username</label>
+              <input
+                type="text"
                 style={styles.input}
-                value={selectedProfile}
-                onChange={(e) => handleProfileChange(e.target.value)}
-              >
-                {Object.values(merchantProfiles).map(profile => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name} - {profile.description}
-                  </option>
-                ))}
-              </select>
-              <p style={{ fontSize: '13px', color: '#718096', marginTop: '8px' }}>
-                {merchantProfiles[selectedProfile]?.description}
-              </p>
+                value={apiConfig.username}
+                onChange={(e) => handleApiConfigChange('username', e.target.value)}
+                placeholder="merchant.YOUR_MERCHANT_ID"
+              />
             </div>
 
-            {selectedProfile !== 'custom' && (
-              <div style={{
-                padding: '16px',
-                backgroundColor: '#f0fdf4',
-                border: '1px solid #86efac',
-                borderRadius: '8px',
-                marginBottom: '20px'
-              }}>
-                <p style={{ fontSize: '14px', color: '#166534', margin: 0 }}>
-                  ✓ <strong>Ready to use!</strong> This profile is pre-configured with demo credentials. 
-                  You can start processing payments immediately.
-                  {showCredentials && (
-                    <span>
-                      {' '}
-                      <button
-                        onClick={() => setShowCredentials(false)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#166534',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontSize: '14px'
-                        }}
-                      >
-                        Hide credentials
-                      </button>
-                    </span>
-                  )}
-                  {!showCredentials && (
-                    <span>
-                      {' '}
-                      <button
-                        onClick={() => setShowCredentials(true)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#166534',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontSize: '14px'
-                        }}
-                      >
-                        Show credentials
-                      </button>
-                    </span>
-                  )}
-                </p>
-              </div>
-            )}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>API Password</label>
+              <input
+                type="password"
+                style={styles.input}
+                value={apiConfig.password}
+                onChange={(e) => handleApiConfigChange('password', e.target.value)}
+                placeholder="Enter API Password"
+              />
+            </div>
 
-            {(showCredentials || selectedProfile === 'custom') && (
-              <>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Merchant ID</label>
-                  <input
-                    type="text"
-                    style={styles.input}
-                    value={apiConfig.merchantId}
-                    onChange={(e) => handleApiConfigChange('merchantId', e.target.value)}
-                    placeholder="Enter Merchant ID"
-                    disabled={selectedProfile !== 'custom'}
-                  />
-                </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>API Base URL</label>
+              <input
+                type="url"
+                style={styles.input}
+                value={apiConfig.apiBaseUrl}
+                onChange={(e) => handleApiConfigChange('apiBaseUrl', e.target.value)}
+                placeholder="https://mtf.gateway.mastercard.com"
+              />
+            </div>
 
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>API Username</label>
-                  <input
-                    type="text"
-                    style={styles.input}
-                    value={apiConfig.username}
-                    onChange={(e) => handleApiConfigChange('username', e.target.value)}
-                    placeholder="merchant.YOUR_MERCHANT_ID"
-                    disabled={selectedProfile !== 'custom'}
-                  />
-                </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>API Version</label>
+              <input
+                type="text"
+                style={styles.input}
+                value={apiConfig.apiVersion}
+                onChange={(e) => handleApiConfigChange('apiVersion', e.target.value)}
+                placeholder="73"
+              />
+            </div>
 
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>API Password</label>
-                  <input
-                    type="password"
-                    style={styles.input}
-                    value={apiConfig.password}
-                    onChange={(e) => handleApiConfigChange('password', e.target.value)}
-                    placeholder="Enter API Password"
-                    disabled={selectedProfile !== 'custom'}
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>API Base URL</label>
-                  <input
-                    type="url"
-                    style={styles.input}
-                    value={apiConfig.apiBaseUrl}
-                    onChange={(e) => handleApiConfigChange('apiBaseUrl', e.target.value)}
-                    placeholder="https://mtf.gateway.mastercard.com"
-                    disabled={selectedProfile !== 'custom'}
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>API Version</label>
-                  <input
-                    type="text"
-                    style={styles.input}
-                    value={apiConfig.apiVersion}
-                    onChange={(e) => handleApiConfigChange('apiVersion', e.target.value)}
-                    placeholder="73"
-                    disabled={selectedProfile !== 'custom'}
-                  />
-                </div>
-              </>
-            )}
-
-            {selectedProfile === 'custom' && (
-              <>
-                <button style={styles.uploadButton} onClick={handleSaveApiConfig}>
-                  💾 Save Custom Configuration
-                </button>
-                <button 
-                  style={{...styles.uploadButton, background: '#2196F3', marginLeft: '10px'}} 
-                  onClick={() => {
-                    const config = localStorage.getItem('apiConfiguration');
-                    if (!config) {
-                      alert('❌ No configuration found in localStorage!');
-                      console.log('❌ localStorage is empty');
-                      return;
-                    }
-                    try {
-                      const parsed = JSON.parse(config);
-                      const passwordInfo = parsed.password ? `${parsed.password.length} characters` : 'NOT SET';
-                      alert(`✅ Configuration found!\n\nMerchant ID: ${parsed.merchantId}\nUsername: ${parsed.username}\nPassword: ${passwordInfo}\nBase URL: ${parsed.apiBaseUrl}\nVersion: ${parsed.apiVersion}`);
-                      console.log('✅ localStorage config:', { ...parsed, password: passwordInfo });
-                    } catch (e) {
-                      alert('❌ Error parsing configuration: ' + e.message);
-                      console.error('❌ Parse error:', e);
-                    }
-                  }}
-                >
-                  🔍 Test localStorage
-                </button>
-              </>
-            )}
+            <button style={styles.uploadButton} onClick={handleSaveApiConfig}>
+              💾 Save API Configuration
+            </button>
 
             <div style={styles.infoBox}>
               <p style={styles.infoText}>
-                <strong>🔒 Security:</strong> Pre-configured profiles use demo credentials safe for presentations. 
-                Custom configurations are stored locally in your browser.
+                <strong>🔒 Security:</strong> API credentials are stored locally in your browser.
               </p>
             </div>
           </div>
@@ -798,7 +619,7 @@ function ConfigurationPage() {
                 <div style={styles.jsonError}>
                   <strong>JSON Error:</strong> {jsonError}
                 </div>
-                )}
+              )}
             </div>
 
             <button style={styles.uploadButton} onClick={handleSaveJsonConfig}>
