@@ -1,4 +1,254 @@
-tabContainer: {
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLogoContext } from './contexts/LogoContext';
+import Logo from './components/Logo';
+import ImageUtils from './utils/ImageUtils';
+import merchantProfiles from './config/merchantProfiles';
+
+function ConfigurationPage() {
+  const navigate = useNavigate();
+  const { logoUrl, companyName, updateLogo, updateCompanyName, clearLogo } = useLogoContext();
+  
+  const [activeTab, setActiveTab] = useState('general');
+  const [logoPreview, setLogoPreview] = useState(logoUrl);
+  const [tempCompanyName, setTempCompanyName] = useState(companyName);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [imageInfo, setImageInfo] = useState(null);
+  const [validationMessage, setValidationMessage] = useState('');
+  
+  const [jsonPayload, setJsonPayload] = useState(`{
+  "apiOperation": "INITIATE_CHECKOUT",
+  "checkoutMode": "WEBSITE",
+  "interaction": {
+    "operation": "PURCHASE",
+    "displayControl": {
+      "billingAddress": "HIDE"
+    },
+    "merchant": { 
+      "name": "JK Enterprises LLC",
+      "url": "https://mastercard.com/"
+    },
+    "returnUrl": "\${window.location.origin}/ReceiptPage"
+  },
+  "order": {
+    "currency": "USD",
+    "amount": "99.00",
+    "id": "ORDER_PLACEHOLDER",
+    "description": "Goods and Services"
+  }
+}`);
+  const [jsonError, setJsonError] = useState(null);
+
+  const [selectedProfile, setSelectedProfile] = useState('default');
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [apiConfig, setApiConfig] = useState({
+    merchantId: '',
+    username: '',
+    password: '',
+    apiBaseUrl: 'https://mtf.gateway.mastercard.com',
+    apiVersion: '73'
+  });
+
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('selectedMerchantProfile') || 'default';
+    setSelectedProfile(savedProfile);
+    
+    const savedConfig = localStorage.getItem('apiConfiguration');
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig);
+        setApiConfig(parsed);
+        if (!merchantProfiles[savedProfile] || savedProfile === 'custom') {
+          setShowCredentials(true);
+        }
+      } catch (e) {
+        console.error('Error loading saved configuration:', e);
+        setApiConfig(merchantProfiles[savedProfile].config);
+      }
+    } else {
+      setApiConfig(merchantProfiles[savedProfile].config);
+    }
+    
+    const savedJsonPayload = localStorage.getItem('advancedJsonPayload');
+    if (savedJsonPayload) {
+      setJsonPayload(savedJsonPayload);
+      try {
+        JSON.parse(savedJsonPayload);
+      } catch (e) {
+        setJsonError(`Invalid JSON: ${e.message}`);
+      }
+    }
+  }, []);
+
+  const handleLogoUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const validation = ImageUtils.validateImage(file);
+      if (!validation.valid) {
+        alert(validation.error);
+        return;
+      }
+
+      try {
+        const base64 = await ImageUtils.fileToBase64(file);
+        setLogoPreview(base64);
+        
+        const dimensions = await ImageUtils.getImageDimensions(base64);
+        const specsCheck = ImageUtils.checkRecommendedSpecs(dimensions.width, dimensions.height);
+        
+        setImageInfo({
+          name: file.name,
+          size: ImageUtils.formatFileSize(file.size),
+          dimensions: `${dimensions.width}×${dimensions.height}px`,
+          type: file.type
+        });
+        
+        setValidationMessage(specsCheck.message);
+      } catch (error) {
+        alert('Failed to process image. Please try another file.');
+        console.error('Image processing error:', error);
+      }
+    }
+  };
+
+  const handleLogoUrlInput = async (url) => {
+    setLogoPreview(url);
+    setImageInfo(null);
+    setValidationMessage('');
+    
+    if (url && ImageUtils.validateUrl(url)) {
+      try {
+        const dimensions = await ImageUtils.getImageDimensions(url);
+        const specsCheck = ImageUtils.checkRecommendedSpecs(dimensions.width, dimensions.height);
+        
+        setImageInfo({
+          name: url.split('/').pop() || 'logo',
+          dimensions: `${dimensions.width}×${dimensions.height}px`,
+          type: 'URL'
+        });
+        
+        setValidationMessage(specsCheck.message);
+      } catch (error) {
+        setValidationMessage('⚠️ Unable to load image from URL.');
+      }
+    }
+  };
+
+  const handleSaveLogo = () => {
+    if (logoPreview) {
+      updateLogo(logoPreview);
+      updateCompanyName(tempCompanyName);
+      showSaveMessage('Logo and company name saved successfully!');
+    }
+  };
+
+  const handleClearLogo = () => {
+    clearLogo();
+    setLogoPreview('');
+    setImageInfo(null);
+    setValidationMessage('');
+    showSaveMessage('Logo cleared successfully!');
+  };
+
+  const handleApiConfigChange = (field, value) => {
+    setApiConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProfileChange = (profileId) => {
+    setSelectedProfile(profileId);
+    localStorage.setItem('selectedMerchantProfile', profileId);
+    
+    if (profileId === 'custom') {
+      setShowCredentials(true);
+    } else {
+      setShowCredentials(false);
+      const profile = merchantProfiles[profileId];
+      if (profile) {
+        setApiConfig(profile.config);
+        localStorage.setItem('apiConfiguration', JSON.stringify(profile.config));
+        showSaveMessage(`Loaded ${profile.name} configuration`);
+      }
+    }
+  };
+
+  const handleSaveApiConfig = () => {
+    localStorage.setItem('apiConfiguration', JSON.stringify(apiConfig));
+    showSaveMessage('API configuration saved successfully!');
+  };
+  
+  const handleJsonChange = (value) => {
+    setJsonPayload(value);
+    setJsonError(null);
+    
+    try {
+      JSON.parse(value);
+    } catch (e) {
+      setJsonError(`Invalid JSON: ${e.message}`);
+    }
+  };
+  
+  const handleSaveJsonConfig = () => {
+    if (jsonError) {
+      alert('Please fix JSON errors before saving.');
+      return;
+    }
+    localStorage.setItem('advancedJsonPayload', jsonPayload);
+    showSaveMessage('Advanced JSON configuration saved successfully!');
+  };
+
+  const showSaveMessage = (message) => {
+    setSaveMessage(message);
+    setTimeout(() => setSaveMessage(''), 3000);
+  };
+
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      backgroundColor: '#f5f7fa',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    },
+    header: {
+      backgroundColor: 'white',
+      padding: '20px 40px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    backButton: {
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      border: 'none',
+      padding: '12px 24px',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '16px',
+      fontWeight: '600',
+      transition: 'all 0.3s ease',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+    },
+    content: {
+      maxWidth: '1000px',
+      margin: '40px auto',
+      padding: '0 20px',
+    },
+    title: {
+      fontSize: '36px',
+      fontWeight: '700',
+      color: '#1a202c',
+      marginBottom: '10px',
+    },
+    subtitle: {
+      fontSize: '16px',
+      color: '#718096',
+      marginBottom: '40px',
+    },
+    tabContainer: {
       display: 'flex',
       gap: '10px',
       marginBottom: '30px',
@@ -492,7 +742,7 @@ tabContainer: {
                 <div style={styles.jsonError}>
                   <strong>JSON Error:</strong> {jsonError}
                 </div>
-              )}
+                )}
             </div>
 
             <button style={styles.uploadButton} onClick={handleSaveJsonConfig}>
