@@ -59,7 +59,7 @@ function ConfigurationPage() {
     }
     
     // Load saved JSON payload
-    const savedJsonPayload = localStorage.getItem('advancedJsonPayload');
+    const savedJsonPayload = localStorage.getItem('mastercardJsonPayload');
     if (savedJsonPayload) {
       setJsonPayload(savedJsonPayload);
       // Validate loaded JSON
@@ -169,7 +169,8 @@ function ConfigurationPage() {
       alert('Please fix JSON errors before saving.');
       return;
     }
-    localStorage.setItem('advancedJsonPayload', jsonPayload);
+    localStorage.setItem('mastercardJsonPayload', jsonPayload);
+    localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
     showSaveMessage('Advanced JSON configuration saved successfully!');
   };
 
