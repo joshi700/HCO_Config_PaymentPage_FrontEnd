@@ -1,643 +1,434 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLogoContext } from './contexts/LogoContext';
 import Logo from './components/Logo';
-import ImageUtils from './utils/ImageUtils';
 
-function ConfigurationPage() {
-  const navigate = useNavigate();
-  const { logoUrl, companyName, updateLogo, updateCompanyName, clearLogo } = useLogoContext();
-  
-  const [activeTab, setActiveTab] = useState('general');
-  const [logoPreview, setLogoPreview] = useState(logoUrl);
-  const [tempCompanyName, setTempCompanyName] = useState(companyName);
-  const [saveMessage, setSaveMessage] = useState('');
-  const [imageInfo, setImageInfo] = useState(null);
-  const [validationMessage, setValidationMessage] = useState('');
-  
-  // JSON Payload state for Advanced Mode
-  const [jsonPayload, setJsonPayload] = useState(`{
-  "apiOperation": "INITIATE_CHECKOUT",
-  "checkoutMode": "WEBSITE",
-  "interaction": {
-    "operation": "PURCHASE",
-    "displayControl": {
-      "billingAddress": "HIDE"
-    },
-    "merchant": { 
-      "name": "JK Enterprises LLC",
-      "url": "https://mastercard.com/"
-    },
-    "returnUrl": "${window.location.origin}/ReceiptPage"
-  },
-  "order": {
-    "currency": "USD",
-    "amount": "99.00",
-    "id": "ORDER_PLACEHOLDER",
-    "description": "Goods and Services"
-  }
-}`);
-  const [jsonError, setJsonError] = useState(null);
-
-  // API Configuration
-  const [apiConfig, setApiConfig] = useState({
+function ReceiptPage() {
+  const [receiptData, setReceiptData] = useState({
+    resultIndicator: '',
+    sessionVersion: '',
+    checkoutVersion: '',
+    orderAmount: '$99.99',
+    orderId: '',
+    transactionStatus: '',
+    transactionId: '',
     merchantId: '',
-    username: '',
-    password: '',
-    apiBaseUrl: 'https://mtf.gateway.mastercard.com',
-    apiVersion: '73'
+    currency: 'USD'
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem('apiConfiguration');
-    if (savedConfig) {
-      try {
-        setApiConfig(JSON.parse(savedConfig));
-      } catch (e) {
-        console.error('Error loading saved configuration:', e);
-      }
-    }
+    // Parse URL parameters when component mounts
+    const urlParams = new URLSearchParams(window.location.search);
     
-    // Load saved JSON payload
-    const savedJsonPayload = localStorage.getItem('mastercardJsonPayload');
-    if (savedJsonPayload) {
-      setJsonPayload(savedJsonPayload);
-      // Validate loaded JSON
-      try {
-        JSON.parse(savedJsonPayload);
-      } catch (e) {
-        setJsonError(`Invalid JSON: ${e.message}`);
-      }
-    }
-  }, []);
-
-  const handleLogoUpload = async (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const validation = ImageUtils.validateImage(file);
-      if (!validation.valid) {
-        alert(validation.error);
-        return;
-      }
-
-      try {
-        const base64 = await ImageUtils.fileToBase64(file);
-        setLogoPreview(base64);
-        
-        const dimensions = await ImageUtils.getImageDimensions(base64);
-        const specsCheck = ImageUtils.checkRecommendedSpecs(dimensions.width, dimensions.height);
-        
-        setImageInfo({
-          name: file.name,
-          size: ImageUtils.formatFileSize(file.size),
-          dimensions: `${dimensions.width}×${dimensions.height}px`,
-          type: file.type
-        });
-        
-        setValidationMessage(specsCheck.message);
-      } catch (error) {
-        alert('Failed to process image. Please try another file.');
-        console.error('Image processing error:', error);
-      }
-    }
-  };
-
-  const handleLogoUrlInput = async (url) => {
-    setLogoPreview(url);
-    setImageInfo(null);
-    setValidationMessage('');
+    const resultIndicator = urlParams.get('resultIndicator') || '';
+    const sessionVersion = urlParams.get('sessionVersion') || '';
+    const checkoutVersion = urlParams.get('checkoutVersion') || '';
     
-    if (url && ImageUtils.validateUrl(url)) {
-      try {
-        const dimensions = await ImageUtils.getImageDimensions(url);
-        const specsCheck = ImageUtils.checkRecommendedSpecs(dimensions.width, dimensions.height);
-        
-        setImageInfo({
-          name: url.split('/').pop() || 'logo',
-          dimensions: `${dimensions.width}×${dimensions.height}px`,
-          type: 'URL'
-        });
-        
-        setValidationMessage(specsCheck.message);
-      } catch (error) {
-        setValidationMessage('⚠️ Unable to load image from URL.');
-      }
-    }
-  };
-
-  const handleSaveLogo = () => {
-    if (logoPreview) {
-      updateLogo(logoPreview);
-      updateCompanyName(tempCompanyName);
-      showSaveMessage('Logo and company name saved successfully!');
-    }
-  };
-
-  const handleClearLogo = () => {
-    clearLogo();
-    setLogoPreview('');
-    setImageInfo(null);
-    setValidationMessage('');
-    showSaveMessage('Logo cleared successfully!');
-  };
-
-  const handleApiConfigChange = (field, value) => {
-    setApiConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleSaveApiConfig = () => {
-    localStorage.setItem('apiConfiguration', JSON.stringify(apiConfig));
-    showSaveMessage('API configuration saved successfully!');
-  };
-  
-  const handleJsonChange = (value) => {
-    setJsonPayload(value);
-    setJsonError(null);
+    // Get order details from localStorage (stored before checkout)
+    let orderAmount = '$99.99'; // default
+    let orderId = 'N/A';
+    let merchantId = 'N/A';
+    let currency = 'USD';
     
     try {
-      JSON.parse(value);
+      // Load amount and format with currency
+      const savedAmount = localStorage.getItem('lastOrderAmount');
+      const savedCurrency = localStorage.getItem('lastOrderCurrency');
+      const savedOrderId = localStorage.getItem('lastOrderId');
+      const savedMerchantId = localStorage.getItem('lastMerchantId');
+      
+      if (savedAmount) {
+        currency = savedCurrency || 'USD';
+        const currencySymbol = currency === 'USD' ? '$' : 
+                              currency === 'EUR' ? '€' : 
+                              currency === 'GBP' ? '£' : 
+                              currency === 'JPY' ? '¥' : 
+                              currency + ' ';
+        orderAmount = `${currencySymbol}${parseFloat(savedAmount).toFixed(2)}`;
+      }
+      
+      if (savedOrderId) {
+        orderId = savedOrderId;
+      }
+      
+      if (savedMerchantId) {
+        merchantId = savedMerchantId;
+      }
+      
+      console.log('📄 Loaded order details from localStorage:');
+      console.log('   Order ID:', orderId);
+      console.log('   Merchant ID:', merchantId);
+      console.log('   Amount:', orderAmount);
+      console.log('   Currency:', currency);
+      
     } catch (e) {
-      setJsonError(`Invalid JSON: ${e.message}`);
+      console.error('Error reading order details:', e);
     }
-  };
-  
-  const handleSaveJsonConfig = () => {
-    if (jsonError) {
-      alert('Please fix JSON errors before saving.');
-      return;
-    }
-    localStorage.setItem('mastercardJsonPayload', jsonPayload);
-    localStorage.setItem('mastercardConfigTimestamp', Date.now().toString());
-    showSaveMessage('Advanced JSON configuration saved successfully!');
+    
+    // Determine transaction status
+    // Result indicator presence typically indicates success
+    const transactionStatus = resultIndicator ? 'SUCCESS' : 'UNKNOWN';
+    
+    // Transaction ID should be the resultIndicator (this is what the gateway returns)
+    const transactionId = resultIndicator || 'N/A';
+    
+    // Update state with all parsed data
+    setReceiptData({
+      resultIndicator,
+      sessionVersion,
+      checkoutVersion,
+      orderId,
+      orderAmount,
+      transactionStatus,
+      transactionId,
+      merchantId,
+      currency
+    });
+
+    setLoading(false);
+    
+    // Log for debugging
+    console.log('Receipt data:', {
+      resultIndicator,
+      sessionVersion,
+      checkoutVersion,
+      orderId,
+      orderAmount,
+      transactionStatus,
+      transactionId,
+      merchantId,
+      currency
+    });
+  }, []);
+
+  const handleReturnHome = () => {
+    // Navigate back to main app
+    window.location.href = '/';
   };
 
-  const showSaveMessage = (message) => {
-    setSaveMessage(message);
-    setTimeout(() => setSaveMessage(''), 3000);
+  const handlePrintReceipt = () => {
+    window.print();
   };
 
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      backgroundColor: '#f5f7fa',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    },
-    header: {
-      backgroundColor: 'white',
-      padding: '20px 40px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    backButton: {
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      color: 'white',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '16px',
-      fontWeight: '600',
-      transition: 'all 0.3s ease',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-    },
-    content: {
-      maxWidth: '1000px',
-      margin: '40px auto',
-      padding: '0 20px',
-    },
-    title: {
-      fontSize: '36px',
-      fontWeight: '700',
-      color: '#1a202c',
-      marginBottom: '10px',
-    },
-    subtitle: {
-      fontSize: '16px',
-      color: '#718096',
-      marginBottom: '40px',
-    },
-    tabContainer: {
-      display: 'flex',
-      gap: '10px',
-      marginBottom: '30px',
-      borderBottom: '2px solid #e2e8f0',
-    },
-    tab: {
-      padding: '12px 24px',
-      background: 'none',
-      border: 'none',
-      borderBottom: '3px solid transparent',
-      cursor: 'pointer',
-      fontSize: '16px',
-      fontWeight: '600',
-      color: '#718096',
-      transition: 'all 0.3s ease',
-    },
-    activeTab: {
-      color: '#667eea',
-      borderBottom: '3px solid #667eea',
-    },
-    card: {
-      backgroundColor: 'white',
-      borderRadius: '12px',
-      padding: '30px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-      marginBottom: '20px',
-    },
-    sectionTitle: {
-      fontSize: '20px',
-      fontWeight: '700',
-      color: '#1a202c',
-      marginBottom: '20px',
-    },
-    formGroup: {
-      marginBottom: '24px',
-    },
-    label: {
-      display: 'block',
-      fontSize: '14px',
-      fontWeight: '600',
-      color: '#4a5568',
-      marginBottom: '8px',
-    },
-    input: {
-      width: '100%',
-      padding: '12px 16px',
-      fontSize: '16px',
-      border: '2px solid #e2e8f0',
-      borderRadius: '8px',
-      transition: 'border-color 0.3s ease',
-      boxSizing: 'border-box',
-    },
-    logoPreview: {
-      marginTop: '20px',
-      padding: '30px',
-      backgroundColor: '#f7fafc',
-      borderRadius: '8px',
-      border: '2px dashed #cbd5e0',
-      textAlign: 'center',
-    },
-    logoImage: {
-      maxWidth: '250px',
-      maxHeight: '100px',
-      objectFit: 'contain',
-    },
-    uploadButton: {
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      color: 'white',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '16px',
-      fontWeight: '600',
-      transition: 'all 0.3s ease',
-      marginRight: '10px',
-    },
-    clearButton: {
-      background: '#e53e3e',
-      color: 'white',
-      border: 'none',
-      padding: '12px 24px',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '16px',
-      fontWeight: '600',
-      transition: 'all 0.3s ease',
-    },
-    saveMessage: {
-      padding: '16px',
-      backgroundColor: '#c6f6d5',
-      color: '#22543d',
-      borderRadius: '8px',
-      marginBottom: '20px',
-      textAlign: 'center',
-      fontWeight: '600',
-    },
-    infoBox: {
-      backgroundColor: '#ebf8ff',
-      border: '1px solid #90cdf4',
-      borderRadius: '8px',
-      padding: '16px',
-      marginTop: '20px',
-    },
-    infoText: {
-      fontSize: '14px',
-      color: '#2c5282',
-      margin: 0,
-    },
-    buttonGroup: {
-      display: 'flex',
-      gap: '12px',
-      marginTop: '20px',
-    },
-    hiddenInput: {
-      display: 'none',
-    },
-    textarea: {
-      width: '100%',
-      padding: '16px',
-      border: '2px solid #e5e7eb',
-      borderRadius: '8px',
-      fontSize: '13px',
-      minHeight: '420px',
-      resize: 'vertical',
-      fontFamily: '"Fira Code", "JetBrains Mono", Monaco, Menlo, "Ubuntu Mono", monospace',
-      boxSizing: 'border-box',
-      lineHeight: '1.5',
-      backgroundColor: '#f8fafc',
-    },
-    textareaError: {
-      borderColor: '#ef4444',
-    },
-    jsonError: {
-      marginTop: '12px',
-      padding: '12px',
-      backgroundColor: '#fee2e2',
-      border: '1px solid #ef4444',
-      borderRadius: '6px',
-      color: '#991b1b',
-      fontSize: '14px',
-    },
-  };
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            border: '4px solid #f3f3f3',
+            borderTop: '4px solid #3498db',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            animation: 'spin 2s linear infinite',
+            margin: '0 auto 20px'
+          }}></div>
+          <p style={{ color: '#666' }}>Processing receipt...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
+    <div style={{
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      maxWidth: '600px',
+      margin: '0 auto',
+      padding: '20px',
+      backgroundColor: '#f8f9fa',
+      minHeight: '100vh'
+    }}>
+      {/* Logo Header */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        marginBottom: '20px',
+        backgroundColor: 'white',
+        borderRadius: '10px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}>
         <Logo size="medium" />
-        <button 
-          style={styles.backButton}
-          onClick={() => navigate('/')}
-        >
-          ← Back to Home
-        </button>
-      </header>
-
-      <div style={styles.content}>
-        <h1 style={styles.title}>Configuration Settings</h1>
-        <p style={styles.subtitle}>Manage your payment gateway settings and branding</p>
-
-        {saveMessage && (
-          <div style={styles.saveMessage}>
-            ✓ {saveMessage}
-          </div>
-        )}
-
-        <div style={styles.tabContainer}>
-          <button
-            style={{
-              ...styles.tab,
-              ...(activeTab === 'general' ? styles.activeTab : {})
-            }}
-            onClick={() => setActiveTab('general')}
-          >
-            General & Branding
-          </button>
-          <button
-            style={{
-              ...styles.tab,
-              ...(activeTab === 'api' ? styles.activeTab : {})
-            }}
-            onClick={() => setActiveTab('api')}
-          >
-            API Configuration
-          </button>
-          <button
-            style={{
-              ...styles.tab,
-              ...(activeTab === 'advanced' ? styles.activeTab : {})
-            }}
-            onClick={() => setActiveTab('advanced')}
-          >
-            Advanced JSON
-          </button>
-        </div>
-
-        {activeTab === 'general' && (
-          <div style={styles.card}>
-            <h2 style={styles.sectionTitle}>Company Branding</h2>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Company Name</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={tempCompanyName}
-                onChange={(e) => setTempCompanyName(e.target.value)}
-                placeholder="Enter your company name"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Company Logo</label>
-              <p style={{ fontSize: '14px', color: '#718096', marginBottom: '12px' }}>
-                Upload your logo or provide a URL. Recommended size: 200x60px (PNG or JPG)
-              </p>
-              
-              <input
-                type="file"
-                id="logo-upload"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                style={styles.hiddenInput}
-              />
-              
-              <button
-                style={styles.uploadButton}
-                onClick={() => document.getElementById('logo-upload').click()}
-              >
-                📁 Upload Logo
-              </button>
-
-              <div style={{ marginTop: '20px' }}>
-                <label style={styles.label}>Or enter logo URL:</label>
-                <input
-                  type="url"
-                  style={styles.input}
-                  value={logoPreview}
-                  onChange={(e) => handleLogoUrlInput(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                />
-              </div>
-
-              {logoPreview && (
-                <div style={styles.logoPreview}>
-                  <p style={{ fontSize: '14px', color: '#718096', marginBottom: '16px' }}>
-                    Logo Preview:
-                  </p>
-                  <img 
-                    src={logoPreview} 
-                    alt="Logo Preview" 
-                    style={styles.logoImage}
-                  />
-                  
-                  {imageInfo && (
-                    <div style={{ marginTop: '16px', fontSize: '13px', color: '#4a5568' }}>
-                      <p style={{ margin: '4px 0' }}><strong>File:</strong> {imageInfo.name}</p>
-                      {imageInfo.size && <p style={{ margin: '4px 0' }}><strong>Size:</strong> {imageInfo.size}</p>}
-                      <p style={{ margin: '4px 0' }}><strong>Dimensions:</strong> {imageInfo.dimensions}</p>
-                    </div>
-                  )}
-                  
-                  {validationMessage && (
-                    <div style={{ 
-                      marginTop: '12px', 
-                      padding: '10px', 
-                      backgroundColor: validationMessage.includes('✓') ? '#d4edda' : '#fff3cd',
-                      border: `1px solid ${validationMessage.includes('✓') ? '#c3e6cb' : '#ffeaa7'}`,
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: validationMessage.includes('✓') ? '#155724' : '#856404'
-                    }}>
-                      {validationMessage}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div style={styles.buttonGroup}>
-              <button style={styles.uploadButton} onClick={handleSaveLogo}>
-                💾 Save Branding
-              </button>
-              {logoPreview && (
-                <button style={styles.clearButton} onClick={handleClearLogo}>
-                  🗑️ Clear Logo
-                </button>
-              )}
-            </div>
-
-            <div style={styles.infoBox}>
-              <p style={styles.infoText}>
-                <strong>ℹ️ Note:</strong> Your logo will appear on all pages including the shopping cart, 
-                checkout page, payment page, and receipt page.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'api' && (
-          <div style={styles.card}>
-            <h2 style={styles.sectionTitle}>Payment Gateway Configuration</h2>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Merchant ID</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={apiConfig.merchantId}
-                onChange={(e) => handleApiConfigChange('merchantId', e.target.value)}
-                placeholder="Enter Merchant ID"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Username</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={apiConfig.username}
-                onChange={(e) => handleApiConfigChange('username', e.target.value)}
-                placeholder="merchant.YOUR_MERCHANT_ID"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Password</label>
-              <input
-                type="password"
-                style={styles.input}
-                value={apiConfig.password}
-                onChange={(e) => handleApiConfigChange('password', e.target.value)}
-                placeholder="Enter API Password"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Base URL</label>
-              <input
-                type="url"
-                style={styles.input}
-                value={apiConfig.apiBaseUrl}
-                onChange={(e) => handleApiConfigChange('apiBaseUrl', e.target.value)}
-                placeholder="https://mtf.gateway.mastercard.com"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>API Version</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={apiConfig.apiVersion}
-                onChange={(e) => handleApiConfigChange('apiVersion', e.target.value)}
-                placeholder="73"
-              />
-            </div>
-
-            <button style={styles.uploadButton} onClick={handleSaveApiConfig}>
-              💾 Save API Configuration
-            </button>
-
-            <div style={styles.infoBox}>
-              <p style={styles.infoText}>
-                <strong>🔒 Security:</strong> API credentials are stored locally in your browser.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'advanced' && (
-          <div style={styles.card}>
-            <h2 style={styles.sectionTitle}>⚙️ Advanced JSON Configuration</h2>
-            
-            <div style={styles.infoBox}>
-              <p style={styles.infoText}>
-                <strong>🔧 Advanced JSON Mode:</strong> Edit the complete JSON request payload for full control. 
-                Use "ORDER_PLACEHOLDER" for the order ID - it will be auto-generated with a unique timestamp and random string.
-              </p>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>JSON Request Payload</label>
-              <textarea
-                style={{
-                  ...styles.textarea,
-                  ...(jsonError ? styles.textareaError : {})
-                }}
-                value={jsonPayload}
-                onChange={(e) => handleJsonChange(e.target.value)}
-                placeholder="Enter complete JSON payload..."
-              />
-              {jsonError && (
-                <div style={styles.jsonError}>
-                  <strong>JSON Error:</strong> {jsonError}
-                </div>
-              )}
-            </div>
-
-            <button style={styles.uploadButton} onClick={handleSaveJsonConfig}>
-              💾 Save JSON Configuration
-            </button>
-
-            <div style={styles.infoBox}>
-              <p style={styles.infoText}>
-                <strong>ℹ️ Note:</strong> This JSON payload will be used for advanced checkout scenarios. 
-                Make sure your JSON is valid before saving.
-              </p>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Success/Failure Header */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '30px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        marginBottom: '20px',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: '48px',
+          marginBottom: '10px'
+        }}>
+          {receiptData.transactionStatus === 'SUCCESS' ? '✅' : '❌'}
+        </div>
+        <h1 style={{
+          color: receiptData.transactionStatus === 'SUCCESS' ? '#28a745' : '#dc3545',
+          margin: '0 0 10px 0',
+          fontSize: '28px'
+        }}>
+          {receiptData.transactionStatus === 'SUCCESS' ? 'Payment Successful' : 'Payment Status Unknown'}
+        </h1>
+        <p style={{ color: '#666', margin: 0, fontSize: '16px' }}>
+          {receiptData.transactionStatus === 'SUCCESS' 
+            ? 'Thank you for your order! Your transaction has been processed successfully.'
+            : 'Please check the transaction details below.'
+          }
+        </p>
+      </div>
+
+      {/* Receipt Details */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '30px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        marginBottom: '20px'
+      }}>
+        <h2 style={{ 
+          borderBottom: '2px solid #eee', 
+          paddingBottom: '10px',
+          marginTop: 0,
+          color: '#333',
+          fontSize: '20px'
+        }}>
+          Receipt Details
+        </h2>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Amount:</span>
+            <span style={{ fontSize: '20px', color: '#28a745', fontWeight: 'bold' }}>
+              {receiptData.orderAmount}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Merchant ID:</span>
+            <span style={{ fontSize: '14px', fontFamily: 'monospace', color: '#333' }}>
+              {receiptData.merchantId || 'N/A'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Order ID:</span>
+            <span style={{ fontSize: '14px', fontFamily: 'monospace', color: '#333' }}>
+              {receiptData.orderId || 'N/A'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Transaction ID:</span>
+            <span style={{ fontSize: '14px', fontFamily: 'monospace', color: '#333', wordBreak: 'break-all' }}>
+              {receiptData.transactionId}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Date:</span>
+            <span style={{ fontSize: '14px', color: '#333' }}>
+              {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '10px 0' }}>
+            <span style={{ fontWeight: 'bold', color: '#555' }}>Status:</span>
+            <span style={{ 
+              color: receiptData.transactionStatus === 'SUCCESS' ? '#28a745' : '#dc3545',
+              fontWeight: 'bold',
+              fontSize: '16px'
+            }}>
+              {receiptData.transactionStatus}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Technical Details (for debugging) */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '30px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        marginBottom: '20px'
+      }}>
+        <h3 style={{ 
+          borderBottom: '1px solid #eee', 
+          paddingBottom: '10px',
+          marginTop: 0,
+          color: '#666',
+          fontSize: '16px'
+        }}>
+          Technical Details
+        </h3>
+        
+        <div style={{ fontSize: '14px', color: '#666' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Result Indicator:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px',
+              wordBreak: 'break-all',
+              maxWidth: '60%',
+              textAlign: 'right'
+            }}>
+              {receiptData.resultIndicator || 'N/A'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Session Version:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px'
+            }}>
+              {receiptData.sessionVersion || 'N/A'}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 0' }}>
+            <span style={{ fontWeight: '500' }}>Checkout Version:</span>
+            <span style={{ 
+              fontFamily: 'monospace', 
+              backgroundColor: '#f8f9fa', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              fontSize: '13px'
+            }}>
+              {receiptData.checkoutVersion || 'N/A'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{
+        display: 'flex',
+        gap: '15px',
+        flexWrap: 'wrap',
+        marginBottom: '20px'
+      }}>
+        <button
+          onClick={handlePrintReceipt}
+          style={{
+            flex: 1,
+            minWidth: '150px',
+            padding: '15px 20px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.3s',
+            boxShadow: '0 2px 8px rgba(0,123,255,0.3)'
+          }}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = '#0056b3';
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 4px 12px rgba(0,123,255,0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = '#007bff';
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 2px 8px rgba(0,123,255,0.3)';
+          }}
+        >
+          🖨️ Print Receipt
+        </button>
+        
+        <button
+          onClick={handleReturnHome}
+          style={{
+            flex: 1,
+            minWidth: '150px',
+            padding: '15px 20px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.3s',
+            boxShadow: '0 2px 8px rgba(40,167,69,0.3)'
+          }}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = '#1e7e34';
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 4px 12px rgba(40,167,69,0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = '#28a745';
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 2px 8px rgba(40,167,69,0.3)';
+          }}
+        >
+          🏠 Return to Home
+        </button>
+      </div>
+
+      {/* Security Notice */}
+      <div style={{
+        marginTop: '30px',
+        padding: '20px',
+        backgroundColor: '#e9ecef',
+        borderRadius: '8px',
+        fontSize: '14px',
+        color: '#666',
+        textAlign: 'center',
+        lineHeight: '1.6'
+      }}>
+        🔒 This transaction was processed securely through Mastercard's encrypted payment gateway. 
+        Please keep this receipt for your records.
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @media print {
+          body { 
+            margin: 0; 
+            background-color: white !important;
+          }
+          button { 
+            display: none !important; 
+          }
+          div[style*="backgroundColor: '#e9ecef'"] {
+            display: none !important;
+          }
+        }
+        
+        @media (max-width: 600px) {
+          div[style*="flex"] button {
+            flex: none !important;
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-export default ConfigurationPage;
+export default ReceiptPage;
