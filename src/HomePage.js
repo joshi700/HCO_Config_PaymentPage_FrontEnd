@@ -479,25 +479,12 @@ function HomePage() {
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
-      // Store order details for receipt page
+      // Store amount for receipt page
       if (ENABLE_CONFIG_SAVE) {
         const amount = useAdvancedMode 
           ? validatedPayload.order?.amount || '99.00'
           : orderConfig.amount;
-        const orderId = validatedPayload.order?.id || 'N/A';
-        const merchantId = config.merchantId || 'N/A';
-        const currency = validatedPayload.order?.currency || 'USD';
-        
         localStorage.setItem('lastOrderAmount', amount);
-        localStorage.setItem('lastOrderId', orderId);
-        localStorage.setItem('lastMerchantId', merchantId);
-        localStorage.setItem('lastOrderCurrency', currency);
-        
-        console.log('💾 Stored order details for receipt:');
-        console.log('   Order ID:', orderId);
-        console.log('   Merchant ID:', merchantId);
-        console.log('   Amount:', amount);
-        console.log('   Currency:', currency);
       }
       
       const requestBody = {
