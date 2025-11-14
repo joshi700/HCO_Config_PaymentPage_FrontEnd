@@ -96,6 +96,38 @@ function HomePage() {
     }
   }, [debugLog]);
 
+  // Load Order configuration from localStorage on mount (FIX DEFECT 1)
+  useEffect(() => {
+    const savedOrderConfig = localStorage.getItem('mastercardOrderConfig');
+    if (savedOrderConfig) {
+      try {
+        const parsedOrderConfig = JSON.parse(savedOrderConfig);
+        setOrderConfig(prevConfig => ({
+          ...prevConfig,
+          ...parsedOrderConfig
+        }));
+        debugLog('Loaded order configuration from localStorage:', parsedOrderConfig);
+        
+        // Also update the JSON payload with the saved merchant name if in advanced mode
+        if (parsedOrderConfig.merchantName) {
+          setJsonPayload(prevPayload => {
+            try {
+              const parsed = JSON.parse(prevPayload);
+              if (parsed.interaction && parsed.interaction.merchant) {
+                parsed.interaction.merchant.name = parsedOrderConfig.merchantName;
+              }
+              return JSON.stringify(parsed, null, 2);
+            } catch (e) {
+              return prevPayload;
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Error loading order configuration:', e);
+      }
+    }
+  }, [debugLog]);
+
   // Monitor jsonPayload state changes for debugging
   useEffect(() => {
     if (useAdvancedMode && DEBUG_MODE) {
@@ -479,12 +511,15 @@ function HomePage() {
       // Validate payload
       const validatedPayload = getValidatedPayload();
       
-      // Store amount for receipt page
+      // Store amount and orderId for receipt page (FIX DEFECT 2)
       if (ENABLE_CONFIG_SAVE) {
         const amount = useAdvancedMode 
           ? validatedPayload.order?.amount || '99.00'
           : orderConfig.amount;
+        const orderId = validatedPayload.order?.id || '';
         localStorage.setItem('lastOrderAmount', amount);
+        localStorage.setItem('lastOrderId', orderId);
+        debugLog('Stored for receipt - Amount:', amount, 'OrderId:', orderId);
       }
       
       const requestBody = {
