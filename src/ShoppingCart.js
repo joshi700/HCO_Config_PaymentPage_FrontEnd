@@ -497,7 +497,7 @@ function ShoppingCart({
             >
               <span style={styles.buttonIcon}>📄</span>
               <div style={styles.buttonContent}>
-                <div style={styles.buttonTitle}>Checkout with Embedded Page</div>
+                <div style={styles.buttonTitle}>Checkout with Hosted Embedded Page</div>
                 <div style={styles.buttonSubtitle}>
                   Integrates payment form within the application
                 </div>
