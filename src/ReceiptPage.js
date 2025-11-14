@@ -20,17 +20,26 @@ function ReceiptPage() {
     const resultIndicator = urlParams.get('resultIndicator') || '';
     const sessionVersion = urlParams.get('sessionVersion') || '';
     const checkoutVersion = urlParams.get('checkoutVersion') || '';
-    const orderId = urlParams.get('orderId') || '';
+    let orderId = urlParams.get('orderId') || '';
     
-    // Get amount from localStorage if saved (Step 10 improvement)
+    // Get amount and orderId from localStorage if saved (FIX DEFECT 2)
     let orderAmount = '$99.99'; // default
     try {
       const savedAmount = localStorage.getItem('lastOrderAmount');
       if (savedAmount) {
         orderAmount = `$${parseFloat(savedAmount).toFixed(2)}`;
       }
+      
+      // If orderId is not in URL params, try to get it from localStorage
+      if (!orderId) {
+        const savedOrderId = localStorage.getItem('lastOrderId');
+        if (savedOrderId) {
+          orderId = savedOrderId;
+          console.log('OrderId retrieved from localStorage:', orderId);
+        }
+      }
     } catch (e) {
-      console.error('Error reading amount:', e);
+      console.error('Error reading from localStorage:', e);
     }
     
     // Determine transaction status
