@@ -142,10 +142,19 @@ function ConfigurationPage() {
   };
 
   const handleApiConfigChange = (field, value) => {
-    setApiConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setApiConfig(prev => {
+      const newConfig = {
+        ...prev,
+        [field]: value
+      };
+      
+      // Auto-update API Username when Merchant ID changes
+      if (field === 'merchantId') {
+        newConfig.username = value ? `merchant.${value}` : '';
+      }
+      
+      return newConfig;
+    });
   };
 
   const handleSaveApiConfig = () => {
