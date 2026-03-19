@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>localStorage Live Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 700px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #eb6500 0%, #d45a00 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .monitor-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+        }
+        .monitor-box h2 {
+            color: #eb6500;
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.active {
+            background: #28a745;
+        }
+        .status-indicator.inactive {
+            background: #dc3545;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #dee2e6;
+            align-items: center;
+        }
+        .config-item:last-child {
+            border-bottom: none;
+        }
+        .config-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 14px;
+        }
+        .config-value {
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #212529;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .config-value.password {
+            filter: blur(5px);
+            cursor: pointer;
+            transition: filter 0.3s;
+        }
+        .config-value.password:hover {
+            filter: blur(0);
+        }
+        .config-value.empty {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .config-value.set {
+            color: #28a745;
+        }
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        .alert-icon {
+            font-size: 24px;
+        }
+        .btn {
+            background: #eb6500;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #d45a00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(235, 101, 0, 0.3);
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .timestamp {
+            text-align: center;
+            color: #6c757d;
+            font-size: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .instructions {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .instructions strong {
+            color: #856404;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .instructions p {
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔴 localStorage Live Monitor</h1>
+            <p>Real-time monitoring of apiConfiguration</p>
+        </div>
+        
+        <div class="content">
+            <div class="instructions">
+                <strong>📍 Important: Same-Origin Requirement</strong>
+                <p>This page must be served from the <strong>same origin</strong> as your app (e.g., both from localhost:3000 or both from Vercel). Open this page in a new tab on the same origin, then watch it update in real-time as you save configs!</p>
+            </div>
+
+            <div id="status-alert"></div>
+            
+            <div class="monitor-box">
+                <h2>
+                    <span class="status-indicator" id="status-led"></span>
+                    Configuration Status
+                </h2>
+                <div id="config-display"></div>
+            </div>
+
+            <div style="text-align: center;">
+                <button class="btn" onclick="refreshMonitor()">🔄 Refresh Now</button>
+                <button class="btn btn-secondary" onclick="clearStorage()">🗑️ Clear Storage</button>
+            </div>
+
+            <div class="timestamp" id="timestamp"></div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval;
+
+        function updateTimestamp() {
+            document.getElementById('timestamp').textContent = 
+                'Last checked: ' + new Date().toLocaleTimeString();
+        }
+
+        function checkConfig() {
+            const config = localStorage.getItem('apiConfiguration');
+            const statusLed = document.getElementById('status-led');
+            const statusAlert = document.getElementById('status-alert');
+            const configDisplay = document.getElementById('config-display');
+
+            if (!config) {
+                statusLed.className = 'status-indicator inactive';
+                statusAlert.innerHTML = `
+                    <div class="alert alert-danger">
+                        <span class="alert-icon">❌</span>
+                        <div>
+                            <strong>No Configuration Found</strong>
+                            <p>localStorage is empty. Save your configuration from the Config page.</p>
+                        </div>
+                    </div>
+                `;
+                configDisplay.innerHTML = '<p style="text-align: center; color: #6c757d;">Waiting for configuration...</p>';
+                updateTimestamp();
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(config);
+                statusLed.className = 'status-indicator active';
+
+                const hasPassword = parsed.password && parsed.password !== '';
+                
+                statusAlert.innerHTML = hasPassword ? `
+                    <div class="alert alert-success">
+                        <span class="alert-icon">✅</span>
+                        <div>
+                            <strong>Configuration Active</strong>
+                            <p>All required fields are set and ready to use.</p>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="alert alert-danger">
+                        <span class="alert-icon">⚠️</span>
+                        <div>
+                            <strong>Password Missing</strong>
+                            <p>Configuration exists but password is not set. This will cause 401 errors.</p>
+                        </div>
+                    </div>
+                `;
+
+                configDisplay.innerHTML = `
+                    <div class="config-item">
+                        <span class="config-label">Merchant ID</span>
+                        <span class="config-value ${parsed.merchantId ? 'set' : 'empty'}">
+                            ${parsed.merchantId || 'NOT SET'}
+                        </span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">API Username</span>
+                        <span class="config-value ${parsed.username ? 'set' : 'empty'}">
+                            ${parsed.username || 'NOT SET'}
+                        </span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">API Password</span>
+                        <span class="config-value password ${hasPassword ? 'set' : 'empty'}" 
+                              title="Click to reveal">
+                            ${hasPassword ? parsed.password : 'NOT SET'}
+                        </span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">API Base URL</span>
+                        <span class="config-value ${parsed.apiBaseUrl ? 'set' : 'empty'}">
+                            ${parsed.apiBaseUrl || 'NOT SET'}
+                        </span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">API Version</span>
+                        <span class="config-value ${parsed.apiVersion ? 'set' : 'empty'}">
+                            ${parsed.apiVersion || 'NOT SET'}
+                        </span>
+                    </div>
+                `;
+
+                updateTimestamp();
+            } catch (e) {
+                statusLed.className = 'status-indicator inactive';
+                statusAlert.innerHTML = `
+                    <div class="alert alert-danger">
+                        <span class="alert-icon">❌</span>
+                        <div>
+                            <strong>Invalid Configuration</strong>
+                            <p>Configuration exists but contains invalid JSON: ${e.message}</p>
+                        </div>
+                    </div>
+                `;
+                configDisplay.innerHTML = '<p style="text-align: center; color: #dc3545;">Invalid JSON in localStorage</p>';
+                updateTimestamp();
+            }
+        }
+
+        function refreshMonitor() {
+            checkConfig();
+            // Visual feedback
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Refreshed!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 1000);
+        }
+
+        function clearStorage() {
+            if (confirm('Are you sure you want to clear the stored configuration?')) {
+                localStorage.removeItem('apiConfiguration');
+                localStorage.removeItem('selectedMerchantProfile');
+                checkConfig();
+            }
+        }
+
+        // Initial check
+        checkConfig();
+
+        // Auto-refresh every 2 seconds
+        refreshInterval = setInterval(checkConfig, 2000);
+
+        // Listen for storage events from other tabs
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'apiConfiguration') {
+                checkConfig();
+            }
+        });
+    </script>
+</body>
+</html>
