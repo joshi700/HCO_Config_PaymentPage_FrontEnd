@@ -1,6 +1,41 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ShoppingCart from '../components/ShoppingCart';
 import Logo from '../components/Logo';
+import { cartOrderFields } from '../utils/cartTotals';
+import { defaultJsonPayload, MERCHANT_CONTACT, SAMPLE_CUSTOMER, SAMPLE_ADDRESS } from '../config/checkoutTemplate';
+
+const money = (v) => `$${Number(v).toFixed(2)}`;
+
+// In embedded mode Mastercard renders only the payment form, so the order
+// summary is this page's job. Drawn from the order the backend actually sent.
+function OrderSummary({ order }) {
+  const row = { display: 'flex', justifyContent: 'space-between', fontSize: '14px', padding: '4px 0', color: '#374151' };
+  const items = Array.isArray(order.item) ? order.item : [];
+  return (
+    <aside style={{ border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f7f8fa', padding: '20px', textAlign: 'left' }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: '16px' }}>Order summary</h3>
+      <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#6b7280', wordBreak: 'break-all' }}>Order {order.id}</p>
+      {items.length > 0 && (
+        <ul style={{ listStyle: 'none', margin: '0 0 12px', padding: '0 0 12px', borderBottom: '1px solid #e5e7eb' }}>
+          {items.map((i) => (
+            <li key={i.name} style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px' }}>
+                <span style={{ fontWeight: 600 }}>{i.name}</span>
+                <span>{money(Number(i.unitPrice) * Number(i.quantity))}</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>Qty {i.quantity}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {order.itemAmount && <div style={row}><span>Subtotal</span><span>{money(order.itemAmount)}</span></div>}
+      {order.taxAmount && <div style={row}><span>Tax</span><span>{money(order.taxAmount)}</span></div>}
+      <div style={{ ...row, borderTop: '1px solid #e5e7eb', marginTop: '8px', paddingTop: '10px', fontWeight: 700, fontSize: '16px', color: '#111827' }}>
+        <span>Total</span><span>{order.currency} {money(order.amount)}</span>
+      </div>
+    </aside>
+  );
+}
 
 function HomePage() {
   // Compute the backend URL for webhook notifications (same logic as ConfigurationPage)
@@ -30,6 +65,11 @@ function HomePage() {
   const [success, setSuccess] = useState(null);
   const [scriptKey, setScriptKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('checking');
+  // The order the backend sent, for the embedded-mode summary panel.
+  const [order, setOrder] = useState(null);
+  // The cart handed over by the checkout button. Its items, tax and total are
+  // merged into the request, so the charge always matches the cart.
+  const cartRef = useRef(null);
   
   // Application configuration - no environment variables
   const API_BASE_URL = ''
@@ -61,36 +101,15 @@ function HomePage() {
     currency: 'USD',
     amount: '99.00',
     description: 'Goods and Services',
-    merchantName: 'ABC Enterprises LLC',
-    merchantUrl: 'https://microsoft.com/',
+    merchantName: 'GJ Enterprises LLC',
+    merchantUrl: 'https://www.example.com',
     returnUrl: `${window.location.origin}/ReceiptPage`
   });
 
   const [useAdvancedMode, setUseAdvancedMode] = useState(true); // Changed to true - start in Advanced mode by default
 
   // JSON payload for advanced mode with hardcoded defaults
-  const [jsonPayload, setJsonPayload] = useState(`{
-  "apiOperation": "INITIATE_CHECKOUT",
-  "checkoutMode": "WEBSITE",
-  "interaction": {
-    "operation": "PURCHASE",
-    "displayControl": {
-            "billingAddress": "HIDE"
-        },
-    "merchant": {
-      "name": "GJ Enterprises LLC",
-      "url": "https://mastercard.com/"
-    },
-    "returnUrl": "${window.location.origin}/ReceiptPage"
-  },
-  "order": {
-    "currency": "USD",
-    "amount": "99.00",
-    "id": "ORDER_PLACEHOLDER",
-    "notificationUrl": "${backendUrl}/api/webhook",
-    "description": "Goods and Services"
-  }
-}`);
+  const [jsonPayload, setJsonPayload] = useState(() => defaultJsonPayload(backendUrl));
 
   const [jsonError, setJsonError] = useState(null);
 
@@ -402,34 +421,13 @@ function HomePage() {
       currency: 'USD',
       amount: '99.00',
       description: 'Goods and Services',
-      merchantName: 'ABC Enterprises LLC',
-      merchantUrl: 'https://microsoft.com/',
+      merchantName: 'GJ Enterprises LLC',
+      merchantUrl: 'https://www.example.com',
       returnUrl: `${window.location.origin}/ReceiptPage`
     });
 
     // Update JSON payload - Changed default to USD to match orderConfig
-    setJsonPayload(`{
-  "apiOperation": "INITIATE_CHECKOUT",
-  "checkoutMode": "WEBSITE",
-  "interaction": {
-    "operation": "PURCHASE",
-    "displayControl": {
-            "billingAddress": "HIDE"
-        },
-    "merchant": {
-      "name": "ABC Enterprises LLC",
-      "url": "https://microsoft.com/"
-    },
-    "returnUrl": "${window.location.origin}/ReceiptPage"
-  },
-  "order": {
-    "currency": "USD",
-    "amount": "99.00",
-    "id": "ORDER_PLACEHOLDER",
-    "notificationUrl": "${backendUrl}/api/webhook",
-    "description": "Goods and Services"
-  }
-}`);
+    setJsonPayload(defaultJsonPayload(backendUrl));
 
     // Clear stored configuration
     if (ENABLE_CONFIG_SAVE) {
@@ -449,7 +447,7 @@ function HomePage() {
   // Generate order ID and update JSON
   const updateJsonWithOrderId = (json) => {
     const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    return json.replace('"ORDER_PLACEHOLDER"', `"${orderId}"`);
+    return json.replace(/ORDER_PLACEHOLDER/g, orderId);
   };
 
   // Validate and parse JSON payload
@@ -479,6 +477,12 @@ function HomePage() {
           throw new Error('order.currency is required');
         }
         
+        // The cart owns the money: its items, tax and total replace whatever the
+        // template says, so the hosted page shows what the cart showed.
+        if (Array.isArray(cartRef.current) && cartRef.current.length) {
+          Object.assign(parsed.order, cartOrderFields(cartRef.current));
+        }
+
         console.log('✅ Validation passed - returning payload');
         return parsed;
       } catch (e) {
@@ -493,24 +497,33 @@ function HomePage() {
       // Use simple form mode
       const orderId = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const payload = {
-        "apiOperation": "INITIATE_CHECKOUT",
-        "checkoutMode": "WEBSITE",
-        "interaction": {
-          "operation": "PURCHASE",
-          "merchant": { 
-            "name": orderConfig.merchantName,
-            "url": orderConfig.merchantUrl
-          },
-          "returnUrl": orderConfig.returnUrl
+        apiOperation: "INITIATE_CHECKOUT",
+        checkoutMode: "WEBSITE",
+        interaction: {
+          operation: "PURCHASE",
+          displayControl: { billingAddress: "READ_ONLY", customerEmail: "READ_ONLY", shipping: "READ_ONLY" },
+          merchant: { ...MERCHANT_CONTACT, name: orderConfig.merchantName, url: orderConfig.merchantUrl },
+          locale: "en_US",
+          returnUrl: orderConfig.returnUrl
         },
-        "order": {
-          "currency": orderConfig.currency,
-          "amount": orderConfig.amount,
-          "id": orderId,
-          "description": orderConfig.description
-        }
+        order: {
+          currency: orderConfig.currency,
+          amount: orderConfig.amount,
+          id: orderId,
+          description: `Order ${orderId} - ${orderConfig.description}`,
+          itemAmount: orderConfig.amount,
+          taxAmount: "0.00",
+          item: [{ name: orderConfig.description, quantity: 1, unitPrice: orderConfig.amount }]
+        },
+        customer: SAMPLE_CUSTOMER,
+        billing: { address: SAMPLE_ADDRESS },
+        shipping: { contact: { firstName: SAMPLE_CUSTOMER.firstName, lastName: SAMPLE_CUSTOMER.lastName }, address: SAMPLE_ADDRESS }
       };
-      
+
+      if (Array.isArray(cartRef.current) && cartRef.current.length) {
+        Object.assign(payload.order, cartOrderFields(cartRef.current));
+      }
+
       console.log('✅ Simple mode payload created');
       return payload;
     }
@@ -605,6 +618,7 @@ function HomePage() {
       debugLog('Response received:', data);
       
       if (data.sessionId) {
+        setOrder(data.order || null);
         return data.sessionId;
       } else if (typeof data === 'string') {
         return data; // Fallback for direct session ID response
@@ -624,7 +638,8 @@ function HomePage() {
     }
   };
 
-  const openEmbeddedCheckout = async () => {
+  const openEmbeddedCheckout = async (cart) => {
+    cartRef.current = Array.isArray(cart) ? cart : null;
     try {
       setError(null);
       setIsLoadingSession(true);
@@ -664,7 +679,8 @@ function HomePage() {
     }
   };
   
-  const openCheckoutPage = async () => {
+  const openCheckoutPage = async (cart) => {
+    cartRef.current = Array.isArray(cart) ? cart : null;
     try {
       debugLog('Initializing hosted checkout...');
       
@@ -1094,9 +1110,11 @@ function HomePage() {
 
   const isFormValid = () => {
     if (useAdvancedMode) {
-      return !jsonError && jsonPayload.trim() !== '' && config.merchantId && config.username && config.password;
+      // No password required: left blank, the backend supplies its own
+      // server-side credential for this merchant.
+      return !jsonError && jsonPayload.trim() !== '' && config.merchantId && config.username;
     } else {
-      return config.merchantId && config.username && config.password && 
+      return config.merchantId && config.username && 
              orderConfig.amount && orderConfig.currency && orderConfig.description &&
              parseFloat(orderConfig.amount) > 0;
     }
@@ -1391,7 +1409,7 @@ function HomePage() {
                         type="url"
                         value={orderConfig.merchantUrl}
                         onChange={(e) => handleOrderConfigChange('merchantUrl', e.target.value)}
-                        placeholder="https://microsoft.com/"
+                        placeholder="https://www.example.com"
                         onFocus={(e) => e.target.classList.add('input-focused')}
                         onBlur={(e) => e.target.classList.remove('input-focused')}
                       />
@@ -1425,6 +1443,7 @@ function HomePage() {
                     <div>
                       <strong>Advanced JSON Mode:</strong> Edit the complete JSON request payload for full control. 
                       Use "ORDER_PLACEHOLDER" for the order ID - it will be auto-generated with a unique timestamp and random string.
+                      The order amount, itemAmount, taxAmount and item list are filled in from the cart at checkout.
                     </div>
                   </div>
                   
@@ -1500,8 +1519,9 @@ function HomePage() {
             </div>
           )}
           
-          <div style={styles.embeddedContent}>
+          <div style={{ ...styles.embeddedContent, display: 'grid', gridTemplateColumns: order ? 'minmax(0, 1fr) 300px' : '1fr', gap: '24px', alignItems: 'start' }}>
             <div id="hco-embedded"></div>
+            {order && <OrderSummary order={order} />}
           </div>
         </div>
       )}

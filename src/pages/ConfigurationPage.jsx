@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { defaultJsonPayload } from '../config/checkoutTemplate';
 import { useNavigate } from 'react-router-dom';
 import { useLogoContext } from '../contexts/LogoContext';
 import Logo from '../components/Logo';
@@ -35,28 +36,7 @@ function ConfigurationPage() {
   })();
 
   // JSON Payload state for Advanced Mode
-  const [jsonPayload, setJsonPayload] = useState(`{
-  "apiOperation": "INITIATE_CHECKOUT",
-  "checkoutMode": "WEBSITE",
-  "interaction": {
-    "operation": "PURCHASE",
-    "displayControl": {
-      "billingAddress": "HIDE"
-    },
-    "merchant": {
-      "name": "GJ Enterprises LLC",
-      "url": "https://mastercard.com/"
-    },
-    "returnUrl": "${window.location.origin}/ReceiptPage"
-  },
-  "order": {
-    "currency": "USD",
-    "amount": "99.00",
-    "id": "ORDER_PLACEHOLDER",
-    "notificationUrl": "${backendUrl}/api/webhook",
-    "description": "Goods and Services"
-  }
-}`);
+  const [jsonPayload, setJsonPayload] = useState(() => defaultJsonPayload(backendUrl));
   const [jsonError, setJsonError] = useState(null);
 
   // API Configuration

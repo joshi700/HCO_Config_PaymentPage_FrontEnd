@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
+import { cartTotals } from '../utils/cartTotals';
 
 function ShoppingCart({ 
   onCheckoutHosted, 
@@ -50,17 +51,11 @@ function ShoppingCart({
     setCartItems(cartItems.filter(item => item.id !== id));
   };
 
-  const getSubtotal = () => {
-    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  };
-
-  const getTax = () => {
-    return getSubtotal() * 0.08; // 8% tax
-  };
-
-  const getTotal = () => {
-    return getSubtotal() + getTax();
-  };
+  // Same cents arithmetic as the gateway order, so what the cart shows is
+  // exactly what gets charged.
+  const getSubtotal = () => cartTotals(cartItems).itemCents / 100;
+  const getTax = () => cartTotals(cartItems).taxCents / 100;
+  const getTotal = () => cartTotals(cartItems).totalCents / 100;
 
   const styles = {
     pageContainer: {
@@ -560,7 +555,7 @@ function ShoppingCart({
               
               <div style={styles.checkoutButtons}>
                 <button
-                  onClick={onCheckoutHosted}
+                  onClick={() => onCheckoutHosted(cartItems)}
                   style={{
                     ...styles.checkoutButton, 
                     ...styles.hostedButton,
@@ -583,7 +578,7 @@ function ShoppingCart({
                 </button>
 
                 <button
-                  onClick={onCheckoutEmbedded}
+                  onClick={() => onCheckoutEmbedded(cartItems)}
                   style={{
                     ...styles.checkoutButton, 
                     ...styles.embeddedButton,
